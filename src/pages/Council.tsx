@@ -283,7 +283,7 @@ const HeaderCarousel: React.FC = () => {
   const goTo = (i: number) => setIndex(i);
 
   return (
-    <section className="relative w-full h-[340px] md:h-[420px] rounded-2xl overflow-hidden shadow-lg">
+    <section className="relative w-full h-[440px] md:h-[420px] rounded-2xl overflow-hidden shadow-lg">
       {heroImages.map((img: string, i: number) => (
         <div
           key={i}
@@ -292,7 +292,7 @@ const HeaderCarousel: React.FC = () => {
           <img
             src={resolveAvatar(img)}
             alt="Council cover"
-            className="w-full h-full object-cover object-center"
+            className="w-full h-full object-cover object-top"
             onLoad={() => setLoaded(prev => { const n=[...prev]; n[i]=true; return n; })}
           />
           {/* gradient overlay */}
@@ -301,7 +301,7 @@ const HeaderCarousel: React.FC = () => {
       ))}
       {/* Text Content */}
       <div className="relative z-20 h-full flex flex-col items-center justify-center px-6 text-center">
-        <p className="text-luxury-gold/80 tracking-wider text-xs md:text-sm font-medium mb-2">A.Y. 2025 - 2026</p>
+        <p className="text-luxury-gold/80 tracking-wider text-xs md:text-sm font-large mb-2">A.Y. 2025 - 2026</p>
         <h1 className="font-heading font-normal text-white text-3xl md:text-5xl leading-tight drop-shadow-lg">
           CCIS STUDENT COUNCIL
         </h1>
@@ -329,9 +329,9 @@ const HeaderCarousel: React.FC = () => {
 };
 
 const heroImages: string[] = [
-  '/covers/council-cover-1.jpg',
-  '/covers/council-cover-2.jpg',
-  '/covers/council-cover-3.jpg'
+  '/cover-photo-officers/cover-photo.jpg',
+  '/cover-photo-officers/cover-photo2.jpg',
+  '/cover-photo-officers/cover-photo3.jpg',
 ];
 
 export default Council;

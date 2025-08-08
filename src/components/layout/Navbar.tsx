@@ -50,8 +50,12 @@ const Navbar: React.FC = () => {
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link to="/" className="flex items-center space-x-3">
-            <div className="bg-gradient-to-r from-luxury-gold to-yellow-500 p-2 rounded-lg">
-              <Theater className="h-6 w-6 text-luxury-deep" />
+            <div className="bg-white p-1 rounded-3xl">
+              <img
+                src="./logo (1).png"
+                alt="CCIS Student Council Logo"
+                className="h-8 w-8"
+              />
             </div>
             <div className="hidden sm:block">
               <h1 className="text-xl font-heading font-normal text-white">
