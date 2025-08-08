@@ -98,7 +98,7 @@ const sendTicketEmail = async ({
     <html>
     <head>
         <meta charset="utf-8">
-        <title>UPAT Ticket Confirmation</title>
+        <title>CCIS Ticket Confirmation</title>
         <style>
             body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }
             .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
@@ -120,8 +120,8 @@ const sendTicketEmail = async ({
     <body>
         <div class="container">
             <div class="header">
-                <h1>🎭 UPAT Ticketing System</h1>
-                <p>University of Makati Performing Arts and Theater</p>
+                <h1>🎭 CCIS Ticketing System</h1>
+                <p>College of Computing Information Sciences</p>
             </div>
             
             <div class="content">
@@ -192,15 +192,15 @@ const sendTicketEmail = async ({
                 
                 <p style="margin-top: 30px;">
                     Best regards,<br>
-                    <strong>UPAT Ticketing Team</strong><br>
-                    University of Makati Performing Arts and Theater
+                    <strong>CCIS Ticketing Team</strong><br>
+                    College of Computing Information Sciences
                 </p>
             </div>
             
             <div class="footer">
                 <p>This is an automated message. Please do not reply to this email.</p>
-                <p>For support, contact us at support@upat.edu.ph</p>
-                <p>&copy; 2025 University of Makati Performing Arts and Theater</p>
+                <p>For support, contact us at support@ccis.edu.ph</p>
+                <p>&copy; 2025 College of Computing Information Sciences</p>
             </div>
         </div>
     </body>
@@ -209,7 +209,7 @@ const sendTicketEmail = async ({
 
     const mailOptions = {
       from:
-        process.env.EMAIL_FROM || "UPAT Ticketing System <noreply@upat.edu.ph>",
+        process.env.EMAIL_FROM || "CCIS Ticketing System <noreply@ccis.edu.ph>",
       to,
       subject: `🎭 Ticket Confirmation - ${event.title} | ${reservation.reservationCode}`,
       html: emailHTML,
@@ -257,18 +257,18 @@ const sendNotificationEmail = async ({ to, subject, message, userName }) => {
     <body>
         <div class="container">
             <div class="header">
-                <h1>🎭 UPAT Ticketing System</h1>
+                <h1>🎭 CCIS Ticketing System</h1>
             </div>
             <div class="content">
                 <h2>Hello ${userName}!</h2>
                 <div>${message}</div>
                 <p style="margin-top: 30px;">
                     Best regards,<br>
-                    <strong>UPAT Team</strong>
+                    <strong>CCIS Team</strong>
                 </p>
             </div>
             <div class="footer">
-                <p>&copy; 2025 University of Makati Performing Arts and Theater</p>
+                <p>&copy; 2025 College of Computing Information Sciences</p>
             </div>
         </div>
     </body>
@@ -277,7 +277,7 @@ const sendNotificationEmail = async ({ to, subject, message, userName }) => {
 
     const mailOptions = {
       from:
-        process.env.EMAIL_FROM || "UPAT Ticketing System <noreply@upat.edu.ph>",
+        process.env.EMAIL_FROM || "CCIS Ticketing System <noreply@ccis.edu.ph>",
       to,
       subject,
       html: emailHTML,

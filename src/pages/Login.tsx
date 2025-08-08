@@ -49,7 +49,7 @@ const Login: React.FC = () => {
             Welcome Back
           </h2>
           <p className="mt-2 text-gray-400">
-            Sign in to your UPAT account
+            Sign in to your CCIS account
           </p>
         </div>
 

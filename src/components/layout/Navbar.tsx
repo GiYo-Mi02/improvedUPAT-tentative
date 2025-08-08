@@ -29,6 +29,7 @@ const Navbar: React.FC = () => {
   const navLinks = [
     { to: '/', label: 'Home', icon: Theater },
     { to: '/events', label: 'Events', icon: Calendar },
+    { to: '/council', label: 'Council', icon: User },
   ];
 
   const userLinks = [
@@ -54,10 +55,10 @@ const Navbar: React.FC = () => {
             </div>
             <div className="hidden sm:block">
               <h1 className="text-xl font-heading font-normal text-white">
-                UPAT Ticketing
+                CCIS Student Council
               </h1>
               <p className="text-xs text-luxury-champagne opacity-80">
-                University of Makati Performing Arts
+                College of Computing Information Sciences
               </p>
             </div>
           </Link>
@@ -102,7 +103,7 @@ const Navbar: React.FC = () => {
                   </button>
 
                   {showUserMenu && (
-                    <div className="origin-top-right absolute right-0 mt-2 w-48 rounded-lg shadow-lg bg-gray-800 ring-1 ring-black ring-opacity-5">
+                    <div className="origin-top-right absolute right-0 mt-2 w-48 rounded-lg shadow-lg bg-gray-800 ring-1 ring-black ring-opacity-5 max-h-80 overflow-y-auto scrollbar-luxury">
                       <div className="py-1">
                         <div className="px-4 py-2 text-sm text-gray-300 border-b border-gray-700">
                           <p className="font-medium text-white">{state.user?.name}</p>
@@ -190,7 +191,7 @@ const Navbar: React.FC = () => {
       {/* Mobile menu */}
       {isOpen && (
         <div className="md:hidden">
-          <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3 bg-gray-800">
+          <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3 bg-gray-800 max-h-[70vh] overflow-y-auto scrollbar-luxury">
             {navLinks.map((link) => {
               const Icon = link.icon;
               const isActive = location.pathname === link.to;

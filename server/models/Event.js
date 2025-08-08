@@ -49,7 +49,7 @@ const Event = sequelize.define("Event", {
   venue: {
     type: DataTypes.STRING,
     allowNull: false,
-    defaultValue: "UPAT Main Theater",
+    defaultValue: "CCIS Main Hall",
   },
   isPaid: {
     type: DataTypes.BOOLEAN,
@@ -96,7 +96,7 @@ const Event = sequelize.define("Event", {
   organizer: {
     type: DataTypes.STRING,
     allowNull: false,
-    defaultValue: "UPAT",
+    defaultValue: "CCIS",
   },
   requiresApproval: {
     type: DataTypes.BOOLEAN,

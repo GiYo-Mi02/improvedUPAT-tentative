@@ -56,7 +56,7 @@ const Home: React.FC = () => {
     .map(e => ({
       id: e.id,
       title: e.title,
-      description: e.description || 'Experience an unforgettable event at UPAT.',
+      description: e.description || 'Experience an unforgettable event at CCIS.',
       cta: '/events/' + e.id,
       img: resolvePoster(e)
     }));
@@ -73,7 +73,7 @@ const Home: React.FC = () => {
     {
       id: 'fallback-2',
       title: 'Elevate Your Campus Life',
-      description: 'Engage with student creativity and vibrant cultural showcases at UPAT.',
+      description: 'Engage with student creativity and vibrant showcases at CCIS.',
       cta: '/events?category=performance',
       img: null as string | null,
     },
@@ -143,7 +143,7 @@ const Home: React.FC = () => {
                   onError={(e) => { (e.currentTarget as HTMLImageElement).style.display='none'; }}
                 />
               ) : (
-                <div className="w-full h-full bg-gradient-to-br from-luxury-deep via-luxury-night to-black flex items-center justify-center text-luxury-gold/30 text-5xl font-heading tracking-wider">UPAT</div>
+                <div className="w-full h-full bg-gradient-to-br from-luxury-deep via-luxury-night to-black flex items-center justify-center text-luxury-gold/30 text-5xl font-heading tracking-wider">CCIS</div>
               )}
               <div className="absolute inset-0 bg-gradient-to-br from-black/70 to-transparent" />
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_40%,rgba(255,215,128,0.08),transparent_60%)]" />
@@ -155,11 +155,11 @@ const Home: React.FC = () => {
         <div className="relative z-10 max-w-7xl mx-auto h-full px-4 sm:px-6 lg:px-8 flex flex-col justify-center">
           <div className="max-w-3xl">
             <div className="mb-6 inline-flex items-center gap-2 bg-luxury-gold/15 border border-luxury-gold/30 backdrop-blur px-5 py-2 rounded-full">
-              <span className="text-luxury-gold text-sm font-medium"> UPAT Ticketing</span>
+              <span className="text-luxury-gold text-sm font-medium"> CCIS Student Council</span>
               {heroSlides.length > 0 && <span className="text-[10px] uppercase tracking-widest text-luxury-champagne/70">Featured</span>}
             </div>
             <h1 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-heading font-normal text-white leading-[1.05] mb-6">
-              <span className="block text-transparent bg-clip-text bg-gradient-to-r from-luxury-gold via-yellow-700 to-luxury-gold bg-[length:200%_auto]">{active.title}</span>
+              <span className="block text-transparent bg-clip-text bg-gradient-to-r from-luxury-gold to-luxury-gold bg-[length:200%_auto]">{active.title}</span>
             </h1>
             <p className="text-lg sm:text-xl text-gray-300/90 leading-relaxed mb-8 max-w-2xl transition-opacity duration-500">
               {active.description}
@@ -324,8 +324,8 @@ const Home: React.FC = () => {
             Ready to Experience Something Amazing?
           </h2>
           <p className="text-xl text-gray-300 mb-8">
-            Join thousands of students and art enthusiasts in celebrating creativity, 
-            culture, and performance excellence at UPAT.
+            Join thousands of students and enthusiasts in celebrating creativity, 
+            culture, and excellence at CCIS.
           </p>
           <Link 
             to="/register" 

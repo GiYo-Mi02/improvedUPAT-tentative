@@ -156,12 +156,12 @@ router.post(
         category,
         eventDate,
         endDate,
-        venue = "UPAT Main Theater",
+        venue = "CCIS Main Hall",
         isPaid = false,
         basePrice = 0,
         vipPrice = 0,
         maxSeats = 500,
-        organizer = "UPAT",
+        organizer = "CCIS",
         requiresApproval = false,
       } = req.body;
 

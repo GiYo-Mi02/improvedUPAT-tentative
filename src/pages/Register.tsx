@@ -62,7 +62,7 @@ const Register: React.FC = () => {
       <div className="max-w-md w-full space-y-8">
         <div className="text-center">
           <h2 className="text-3xl font-heading font-normal text-white">
-            Join UPAT
+            Join CCIS
           </h2>
           <p className="mt-2 text-gray-400">
             Create your account to start booking tickets
@@ -85,7 +85,7 @@ const Register: React.FC = () => {
                   type="text"
                   autoComplete="name"
                   required
-                  className="input-luxury pl-10"
+                  className="input-luxury pl-10 w-full"
                   placeholder="Full Name"
                   value={formData.name}
                   onChange={handleChange}
@@ -107,7 +107,7 @@ const Register: React.FC = () => {
                   type="email"
                   autoComplete="email"
                   required
-                  className="input-luxury pl-10"
+                  className="input-luxury pl-10 w-full"
                   placeholder="Email address"
                   value={formData.email}
                   onChange={handleChange}
@@ -127,7 +127,7 @@ const Register: React.FC = () => {
                   id="studentId"
                   name="studentId"
                   type="text"
-                  className="input-luxury pl-10"
+                  className="input-luxury pl-10 w-full"
                   placeholder="Student ID (Optional)"
                   value={formData.studentId}
                   onChange={handleChange}
@@ -147,7 +147,7 @@ const Register: React.FC = () => {
                   id="phone"
                   name="phone"
                   type="tel"
-                  className="input-luxury pl-10"
+                  className="input-luxury pl-10 w-full"
                   placeholder="Phone Number (Optional)"
                   value={formData.phone}
                   onChange={handleChange}
@@ -169,7 +169,7 @@ const Register: React.FC = () => {
                   type={showPassword ? 'text' : 'password'}
                   autoComplete="new-password"
                   required
-                  className="input-luxury pl-10 pr-10"
+                  className="input-luxury pl-10 pr-10 w-full"
                   placeholder="Password"
                   value={formData.password}
                   onChange={handleChange}
@@ -202,7 +202,7 @@ const Register: React.FC = () => {
                   type={showConfirmPassword ? 'text' : 'password'}
                   autoComplete="new-password"
                   required
-                  className="input-luxury pl-10 pr-10"
+                  className="input-luxury pl-10 pr-10 w-full"
                   placeholder="Confirm Password"
                   value={formData.confirmPassword}
                   onChange={handleChange}

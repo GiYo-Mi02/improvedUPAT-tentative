@@ -77,7 +77,7 @@ const EventDetails: React.FC = () => {
                   </div>
                   <div className="card-luxury p-3 space-y-1">
                     <div className="text-gray-400">Organizer</div>
-                    <div className="text-white font-medium">{event.organizer || 'UPAT'}</div>
+                    <div className="text-white font-medium">{event.organizer || 'CCIS'}</div>
                   </div>
                   <div className="card-luxury p-3 space-y-1">
                     <div className="text-gray-400">Available</div>

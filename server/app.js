@@ -69,7 +69,7 @@ app.use("/api/admin", adminRoutes);
 app.get("/api/health", (req, res) => {
   res.status(200).json({
     status: "OK",
-    message: "UPAT Ticketing System API is running",
+    message: "CCIS Ticketing System API is running",
     timestamp: new Date().toISOString(),
   });
 });

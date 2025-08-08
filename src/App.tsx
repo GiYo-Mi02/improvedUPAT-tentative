@@ -18,6 +18,7 @@ import AdminReservations from './pages/admin/Reservations';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import AdminRoute from './components/auth/AdminRoute';
 import Toast from './components/ui/Toast';
+import Council from './pages/Council';
 
 function App() {
   return (
@@ -34,6 +35,7 @@ function App() {
                 <Route path="/events/:id" element={<EventDetails />} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
+                <Route path="/council" element={<Council />} />
 
                 {/* Protected Routes */}
                 <Route path="/reserve/:eventId" element={
