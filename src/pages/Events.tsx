@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { eventsAPI } from '../services/api';
+import Reveal from '../components/ui/Reveal';
 
 // Strong typing for events
 interface EventItem {
@@ -87,8 +88,8 @@ const Events: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Filters */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
-          <h1 className="heading-primary">Events</h1>
-          <div className="flex flex-wrap gap-3 text-sm">
+          <Reveal variant="up"><h1 className="heading-primary">Events</h1></Reveal>
+          <Reveal className="flex flex-wrap gap-3 text-sm" variant="up" delay={70}>
             <select
               value={filters.type || 'all'}
               onChange={(e) => setFilter({ type: e.target.value === 'all' ? undefined : e.target.value })}
@@ -119,7 +120,7 @@ const Events: React.FC = () => {
               className="input-luxury w-56"
               onChange={(e) => setFilter({ search: e.target.value || undefined })}
             />
-          </div>
+          </Reveal>
         </div>
 
         {loading && (<div className="text-gray-400">Loading events...</div>)}
@@ -128,16 +129,17 @@ const Events: React.FC = () => {
         {/* This Month (Open) */}
         {!loading && !error && (
           <div className="space-y-6">
-            <h2 className="heading-secondary">Events This Month</h2>
+            <Reveal variant="up"><h2 className="heading-secondary">Events This Month</h2></Reveal>
             {thisMonthOpen.length === 0 ? (
               <div className="text-gray-400">No open events this month.</div>
             ) : (
               <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                {thisMonthOpen.map((ev) => {
+                {thisMonthOpen.map((ev, i) => {
                   const rawRel = ev.posterImage || null;
                   const imgSrc = ev.posterImageUrl || (rawRel ? `${SERVER_BASE}${rawRel.startsWith('/') ? rawRel : `/${rawRel}`}` : null);
                   return (
-                    <div key={ev.id} className="card-luxury p-5 flex flex-col justify-between">
+                    <Reveal key={ev.id} variant="up" delay={i*80}>
+                    <div className="card-luxury p-5 flex flex-col justify-between">
                       <div>
                         {imgSrc ? (
                           <div className="relative h-40 mb-4 -mt-2 -mx-2 overflow-hidden rounded-md border border-luxury-gold/10">
@@ -161,6 +163,7 @@ const Events: React.FC = () => {
                         <a href={`/events/${ev.id}`} className="btn-secondary text-xs px-3 py-2">Details</a>
                       </div>
                     </div>
+                    </Reveal>
                   );
                 })}
               </div>
@@ -171,17 +174,18 @@ const Events: React.FC = () => {
         {/* Upcoming (Next Months) */}
         {!loading && !error && (
           <div className="space-y-6 mt-12">
-            <h2 className="heading-secondary">Upcoming Events</h2>
+            <Reveal variant="up"><h2 className="heading-secondary">Upcoming Events</h2></Reveal>
             {upcoming.length === 0 ? (
               <div className="text-gray-400">No upcoming events.</div>
             ) : (
               <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                {upcoming.map((ev) => {
+                {upcoming.map((ev, i) => {
                   const rawRel = ev.posterImage || null;
                   const imgSrc = ev.posterImageUrl || (rawRel ? `${SERVER_BASE}${rawRel.startsWith('/') ? rawRel : `/${rawRel}`}` : null);
                   const isAvailable = (ev as any).isAvailable ?? ((ev.availableSeats || 0) > 0);
                   return (
-                    <div key={ev.id} className="card-luxury p-5 flex flex-col justify-between">
+                    <Reveal key={ev.id} variant="up" delay={i*80}>
+                    <div className="card-luxury p-5 flex flex-col justify-between">
                       <div>
                         {imgSrc ? (
                           <div className="relative h-40 mb-4 -mt-2 -mx-2 overflow-hidden rounded-md border border-luxury-gold/10">
@@ -201,6 +205,7 @@ const Events: React.FC = () => {
                         <a href={`/events/${ev.id}`} className="btn-secondary text-xs px-3 py-2">Details</a>
                       </div>
                     </div>
+                    </Reveal>
                   );
                 })}
               </div>
@@ -211,16 +216,17 @@ const Events: React.FC = () => {
         {/* Closed */}
         {!loading && !error && (
           <div className="space-y-6 mt-12">
-            <h2 className="heading-secondary">Closed Events</h2>
+            <Reveal variant="up"><h2 className="heading-secondary">Closed Events</h2></Reveal>
             {closed.length === 0 ? (
               <div className="text-gray-400">No closed events.</div>
             ) : (
               <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                {closed.map((ev) => {
+                {closed.map((ev, i) => {
                   const rawRel = ev.posterImage || null;
                   const imgSrc = ev.posterImageUrl || (rawRel ? `${SERVER_BASE}${rawRel.startsWith('/') ? rawRel : `/${rawRel}`}` : null);
                   return (
-                    <div key={ev.id} className="card-luxury p-5 flex flex-col justify-between opacity-80">
+                    <Reveal key={ev.id} variant="up" delay={i*80}>
+                    <div className="card-luxury p-5 flex flex-col justify-between opacity-80">
                       <div>
                         {imgSrc ? (
                           <div className="relative h-40 mb-4 -mt-2 -mx-2 overflow-hidden rounded-md border border-luxury-gold/10">
@@ -240,6 +246,7 @@ const Events: React.FC = () => {
                         <a href={`/events/${ev.id}`} className="btn-secondary text-xs px-3 py-2">Details</a>
                       </div>
                     </div>
+                    </Reveal>
                   );
                 })}
               </div>

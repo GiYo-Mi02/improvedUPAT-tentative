@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Users, Quote, Award, Calendar, Shield } from 'lucide-react';
+import Reveal from '../components/ui/Reveal';
 
 interface Officer {
   id: string;
@@ -172,16 +173,16 @@ const Council: React.FC = () => {
         <HeaderCarousel />
         {/* History */}
         <section className="grid md:grid-cols-3 gap-10 items-start">
-          <div className="md:col-span-1 flex flex-col items-start gap-4">
+          <Reveal className="md:col-span-1 flex flex-col items-start gap-4" variant="up">
             <div className="bg-gradient-to-r from-luxury-gold to-yellow-500 w-14 h-14 rounded-xl flex items-center justify-center shadow-lg">
               <Calendar className="h-7 w-7 text-luxury-deep" />
             </div>
             <h2 className="text-2xl font-heading font-normal text-white">Our History</h2>
             <p className="text-sm text-luxury-gold/80 uppercase tracking-wider">Evolution & Impact</p>
-          </div>
+          </Reveal>
           <div className="md:col-span-2 space-y-5">
             {historyParagraphs.map((p,i) => (
-              <p key={i} className="text-gray-300 leading-relaxed">{p}</p>
+              <Reveal key={i} as="p" className="text-gray-300 leading-relaxed" variant="up" delay={i*90}>{p}</Reveal>
             ))}
           </div>
          
@@ -200,7 +201,7 @@ const Council: React.FC = () => {
             </div>
           </div>
           {chairperson && (
-            <div className="mb-16">
+            <Reveal className="mb-16" variant="up">
               <div className="flex justify-center">
                 <div className="card-luxury p-8 flex flex-col items-center group hover:shadow-luxury transition-all duration-300 w-full max-w-md relative">
                   <div className="relative mb-8">
@@ -238,30 +239,34 @@ const Council: React.FC = () => {
                   </div>
                 </div>
               </div>
-            </div>
+            </Reveal>
           )}
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-            {otherOfficers.map(renderOfficerCard)}
+            {otherOfficers.map((o, i) => (
+              <Reveal key={o.id} variant="up" delay={i*80}>
+                {renderOfficerCard(o)}
+              </Reveal>
+            ))}
           </div>
         </section>
 
         {/* Values / Pillars */}
         <section className="grid md:grid-cols-3 gap-8">
-          <div className="card-luxury p-6 space-y-3">
+          <Reveal className="card-luxury p-6 space-y-3" variant="up">
             <Shield className="h-8 w-8 text-luxury-gold" />
             <h3 className="text-white font-semibold">Student Advocacy</h3>
             <p className="text-gray-400 text-sm leading-relaxed">Upholding student rights, inclusivity, and representation in all academic and organizational dialogues.</p>
-          </div>
-          <div className="card-luxury p-6 space-y-3">
+          </Reveal>
+          <Reveal className="card-luxury p-6 space-y-3" variant="up" delay={90}>
             <Users className="h-8 w-8 text-luxury-gold" />
             <h3 className="text-white font-semibold">Collaboration</h3>
             <p className="text-gray-400 text-sm leading-relaxed">Fostering a culture of teamwork across departments, organizations, and industry partners.</p>
-          </div>
-          <div className="card-luxury p-6 space-y-3">
+          </Reveal>
+          <Reveal className="card-luxury p-6 space-y-3" variant="up" delay={160}>
             <Award className="h-8 w-8 text-luxury-gold" />
             <h3 className="text-white font-semibold">Excellence</h3>
             <p className="text-gray-400 text-sm leading-relaxed">Driving academic, technical, and ethical excellence through impactful programs and initiatives.</p>
-          </div>
+          </Reveal>
         </section>
       </div>
     </div>

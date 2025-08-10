@@ -15,11 +15,10 @@ http.interceptors.response.use(
   (err: AxiosError) => {
     const status = err.response?.status;
     if (status === 401) {
-      localStorage.removeItem('token');
-      // Redirect to 401 page unless already there or on login/register
       const path = window.location.pathname;
-      if (path !== '/login' && path !== '/register' && path !== '/401') {
-        window.location.href = '/401';
+      // Don't aggressively clear token or redirect during bootstrap; let AuthContext decide
+      if (path !== '/login' && path !== '/register') {
+        // optional: we could route to login, but defer to guards to avoid loops
       }
     } else if (status === 403) {
       if (window.location.pathname !== '/403') window.location.href = '/403';

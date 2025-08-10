@@ -24,10 +24,12 @@ type AuthAction =
   | { type: 'LOGOUT' }
   | { type: 'UPDATE_USER'; payload: User };
 
+const tokenFromStorage = localStorage.getItem('token');
 const initialState: AuthState = {
   user: null,
-  token: localStorage.getItem('token'),
-  isLoading: false,
+  token: tokenFromStorage,
+  // If a token exists, start in loading state so guards don't redirect before /auth/me finishes
+  isLoading: !!tokenFromStorage,
   isAuthenticated: false,
 };
 

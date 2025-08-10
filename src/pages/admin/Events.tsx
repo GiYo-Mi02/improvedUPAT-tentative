@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAdminEvents } from '../../hooks/useAdminEvents';
 import { useToast } from '../../contexts/ToastContext';
+import { Plus, Search, Edit3, Trash2, Megaphone, Image as ImageIcon } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 const SERVER_BASE = API_BASE.replace(/\/api$/i,'');
@@ -63,55 +64,102 @@ const AdminEvents: React.FC = () => {
 
   return (
     <div className="min-h-screen py-12">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <h1 className="heading-primary">Admin Events</h1>
-          <div className="flex gap-3">
-            <select value={filters.status || 'all'} onChange={(e) => setFilter({ status: e.target.value === 'all' ? undefined : e.target.value })} className="input-luxury w-36">
+          <div>
+            <h1 className="heading-primary">Admin Events</h1>
+            <p className="text-gray-400 text-sm">Create, publish, and manage your events with clarity.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <select value={filters.status || 'all'} onChange={(e) => setFilter({ status: e.target.value === 'all' ? undefined : e.target.value })} className="input-luxury w-40">
               <option value="all">All Status</option>
               <option value="draft">Draft</option>
               <option value="published">Published</option>
               <option value="archived">Archived</option>
             </select>
-            <input
-              placeholder="Search" className="input-luxury w-48" onChange={(e) => setFilter({ search: e.target.value || undefined })}
-            />
-            <button className="btn-primary text-sm" onClick={() => { setFormOpen(true); setEditing(null); }}>New Event</button>
+            <div className="relative">
+              <div className="pointer-events-none absolute inset-y-0 left-0 pl-3 flex items-center">
+                <Search className="h-4 w-4 text-gray-400" />
+              </div>
+              <input
+                placeholder="Search events"
+                className="input-luxury w-56 pl-9"
+                onChange={(e) => setFilter({ search: e.target.value || undefined })}
+              />
+            </div>
+            <button className="btn-primary text-sm inline-flex items-center gap-2" onClick={() => { setFormOpen(true); setEditing(null); }}>
+              <Plus className="h-4 w-4" />
+              New Event
+            </button>
           </div>
         </div>
         {loading && <div className="text-gray-400">Loading events...</div>}
         {error && !loading && <div className="text-red-400">{error}</div>}
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left text-gray-300">
-            <thead className="text-xs uppercase text-gray-400 border-b border-gray-700/60">
+        <div className="overflow-x-auto rounded-lg border border-luxury-gold/10 shadow-lg shadow-black/40 bg-luxury-night/40 backdrop-blur">
+          <table className="w-full text-sm text-left">
+            <thead className="text-xs uppercase text-gray-400/80 bg-luxury-night/60">
               <tr>
-                <th className="py-3 pr-4">Title</th>
-                <th className="py-3 pr-4">Date</th>
+                <th className="py-3 px-4">Event</th>
+                <th className="py-3 px-4">Date</th>
                 <th className="py-3 pr-4">Type</th>
-                <th className="py-3 pr-4">Category</th>
-                <th className="py-3 pr-4">Status</th>
-                <th className="py-3 pr-4">Seats</th>
-                <th className="py-3 pr-4" />
+                <th className="py-3 px-4">Status</th>
+                <th className="py-3 px-4">Seats</th>
+                <th className="py-3 px-4 text-right" />
               </tr>
             </thead>
             <tbody>
-              {items.map((ev: any) => (
-                <tr key={ev.id} className="border-b border-gray-800/60">
-                  <td className="py-3 pr-4 font-medium text-white">{ev.title}</td>
-                  <td className="py-3 pr-4">{new Date(ev.eventDate).toLocaleDateString()}</td>
-                  <td className="py-3 pr-4 capitalize">{ev.type}</td>
-                  <td className="py-3 pr-4 capitalize">{ev.category}</td>
-                  <td className="py-3 pr-4 capitalize">{ev.status}</td>
-                  <td className="py-3 pr-4">{ev.statistics?.availableSeats ?? '-'} avail</td>
-                  <td className="py-3 pr-4 flex gap-2">
-                    <button className="btn-secondary text-xs px-3 py-1" onClick={() => openEdit(ev)}>Edit</button>
-                    {ev.status === 'draft' && <button className="btn-secondary text-xs px-3 py-1" onClick={() => { setPublishTarget(ev); setPublishForm({ description: ev.description || '', endDate: ev.endDate ? ev.endDate.slice(0,16) : '', posterFile: null }); setPublishOpen(true); }}>Publish</button>}
-                    <button className="btn-secondary text-xs px-3 py-1" disabled={deletingId === ev.id} onClick={() => remove(ev.id)}>{deletingId === ev.id ? '...' : 'Delete'}</button>
-                  </td>
-                </tr>
-              ))}
+              {items.map((ev: any) => {
+                const posterUrl = ev.posterImage ? (/^https?:/i.test(ev.posterImage) ? ev.posterImage : `${SERVER_BASE}${ev.posterImage}`) : null;
+                const badge = (s: string) => {
+                  const base = 'px-2 py-0.5 rounded text-xs font-medium';
+                  switch (s) {
+                    case 'published': return base + ' bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
+                    case 'draft': return base + ' bg-amber-500/20 text-amber-300 border border-amber-500/30';
+                    case 'archived': return base + ' bg-rose-500/20 text-rose-300 border border-rose-500/30';
+                    default: return base + ' bg-gray-500/20 text-gray-300 border border-gray-500/30';
+                  }
+                };
+                return (
+                  <tr key={ev.id} className="border-t border-gray-700/50 hover:bg-luxury-deep/30 transition">
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-3">
+                        <div className="h-12 w-9 rounded-md overflow-hidden bg-luxury-deep/40 border border-luxury-gold/10 flex items-center justify-center">
+                          {posterUrl ? (
+                            <img src={posterUrl} alt={ev.title} className="h-full w-full object-cover" />
+                          ) : (
+                            <ImageIcon className="h-5 w-5 text-gray-500" />
+                          )}
+                        </div>
+                        <div>
+                          <div className="font-medium text-white leading-tight">{ev.title}</div>
+                          <div className="text-xs text-gray-400">{ev.category?.toUpperCase()}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-3 px-4 whitespace-nowrap text-white">{new Date(ev.eventDate).toLocaleDateString()}</td>
+                    <td className="py-3 px-4 capitalize text-white">{ev.type}</td>
+                    <td className="py-3 px-4"><span className={badge(ev.status)}>{ev.status}</span></td>
+                    <td className="py-3 px-4 text-white">{ev.statistics?.availableSeats ?? '-'} avail</td>
+                    <td className="py-3 px-4">
+                      <div className="flex justify-end gap-2">
+                        <button className="btn-secondary text-xs px-3 py-1 inline-flex items-center gap-1" onClick={() => openEdit(ev)} title="Edit">
+                          <Edit3 className="h-4 w-4" /> Edit
+                        </button>
+                        {ev.status === 'draft' && (
+                          <button className="btn-secondary text-xs px-3 py-1 inline-flex items-center gap-1" title="Publish" onClick={() => { setPublishTarget(ev); setPublishForm({ description: ev.description || '', endDate: ev.endDate ? ev.endDate.slice(0,16) : '', posterFile: null }); setPublishOpen(true); }}>
+                            <Megaphone className="h-4 w-4" /> Publish
+                          </button>
+                        )}
+                        <button className="btn-secondary text-xs px-3 py-1 inline-flex items-center gap-1" disabled={deletingId === ev.id} onClick={() => remove(ev.id)} title="Delete">
+                          <Trash2 className="h-4 w-4" /> {deletingId === ev.id ? '...' : 'Delete'}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
               {!loading && items.length === 0 && (
-                <tr><td colSpan={7} className="py-6 text-center text-gray-400">No events</td></tr>
+                <tr><td colSpan={6} className="py-8 text-center text-gray-400">No events</td></tr>
               )}
             </tbody>
           </table>

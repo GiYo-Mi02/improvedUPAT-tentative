@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Calendar, Users, Sparkles, ArrowRight, Star } from 'lucide-react';
 import EventsCalendar from '../components/events/EventsCalendar';
+import Typewriter from '../components/ui/Typewriter';
+import Reveal from '../components/ui/Reveal';
 import { eventsAPI } from '../services/api';
 
 interface Event {
@@ -177,7 +179,9 @@ const Home: React.FC = () => {
               {heroSlides.length > 0 && <span className="text-[10px] uppercase tracking-widest text-luxury-champagne/70">Featured</span>}
             </div>
             <h1 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-heading font-normal text-white leading-[1.05] mb-6">
-              <span className="block text-transparent bg-clip-text bg-gradient-to-r from-luxury-gold to-luxury-gold bg-[length:200%_auto]">{active.title}</span>
+              <span className="block text-transparent bg-clip-text bg-gradient-to-r from-luxury-gold to-luxury-gold bg-[length:200%_auto]">
+                <Typewriter text={active.title} resetKey={active.id + ':' + heroIndex} speedMs={24} startDelayMs={150} />
+              </span>
             </h1>
             <p className="text-lg sm:text-xl text-gray-300/90 leading-relaxed mb-8 max-w-2xl transition-opacity duration-500">
               {active.description}
@@ -215,27 +219,27 @@ const Home: React.FC = () => {
       <section className="py-16 bg-luxury-deep/50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="text-center">
+            <Reveal className="text-center" delay={50}>
               <div className="bg-gradient-to-r from-luxury-gold to-yellow-500 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Calendar className="h-8 w-8 text-luxury-deep" />
               </div>
               <h3 className="text-3xl font-bold text-white mb-2">500+</h3>
               <p className="text-gray-400">Events Hosted</p>
-            </div>
-            <div className="text-center">
+            </Reveal>
+            <Reveal className="text-center" delay={120}>
               <div className="bg-gradient-to-r from-luxury-gold to-yellow-500 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Users className="h-8 w-8 text-luxury-deep" />
               </div>
               <h3 className="text-3xl font-bold text-white mb-2">50K+</h3>
               <p className="text-gray-400">Happy Attendees</p>
-            </div>
-            <div className="text-center">
+            </Reveal>
+            <Reveal className="text-center" delay={190}>
               <div className="bg-gradient-to-r from-luxury-gold to-yellow-500 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Star className="h-8 w-8 text-luxury-deep" />
               </div>
               <h3 className="text-3xl font-bold text-white mb-2">4.9/5</h3>
               <p className="text-gray-400">Average Rating</p>
-            </div>
+            </Reveal>
           </div>
         </div>
       </section>
@@ -243,37 +247,43 @@ const Home: React.FC = () => {
       {/* Calendar of Events */}
       <section className="py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
+          <Reveal className="text-center mb-12" variant="up">
             <h2 className="text-3xl lg:text-4xl font-heading font-normal text-white mb-4">CCIS Upcoming Events</h2>
             <p className="text-xl text-gray-400 max-w-2xl mx-auto">Browse this month’s schedule at a glance.</p>
-          </div>
-          <div className="card-luxury p-6">
+          </Reveal>
+          <Reveal className="card-luxury p-6" variant="up" delay={80}>
             <EventsCalendar
               events={monthEvents as any}
               month={calendarMonth}
               onMonthChange={setCalendarMonth}
             />
-          </div>
+          </Reveal>
         </div>
       </section>
 
       {/* CTA Section */}
       <section className="py-20 bg-gradient-to-r from-luxury-deep to-luxury-night">
         <div className="max-w-4xl mx-auto text-center px-4 sm:px-6 lg:px-8">
-          <h2 className="text-3xl lg:text-4xl font-heading font-normal text-white mb-6">
-            Ready to Experience Something Amazing?
-          </h2>
-          <p className="text-xl text-gray-300 mb-8">
-            Join thousands of students and enthusiasts in celebrating creativity, 
-            culture, and excellence at CCIS.
-          </p>
-          <Link 
-            to="/register" 
-            className="btn-primary text-lg px-8 py-4 inline-flex items-center space-x-2"
-          >
-            <Users className="h-5 w-5" />
-            <span>Join Our Community</span>
-          </Link>
+          <Reveal variant="up">
+            <h2 className="text-3xl lg:text-4xl font-heading font-normal text-white mb-6">
+              Ready to Experience Something Amazing?
+            </h2>
+          </Reveal>
+          <Reveal variant="up" delay={80}>
+            <p className="text-xl text-gray-300 mb-8">
+              Join thousands of students and enthusiasts in celebrating creativity, 
+              culture, and excellence at CCIS.
+            </p>
+          </Reveal>
+          <Reveal variant="up" delay={140}>
+            <Link 
+              to="/register" 
+              className="btn-primary text-lg px-8 py-4 inline-flex items-center space-x-2"
+            >
+              <Users className="h-5 w-5" />
+              <span>Join Our Community</span>
+            </Link>
+          </Reveal>
         </div>
       </section>
     </div>
