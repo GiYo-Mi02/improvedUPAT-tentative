@@ -1,31 +1,38 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { ToastProvider } from './contexts/ToastContext';
+import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
+
 import { AuthProvider } from './contexts/AuthContext';
-import Navbar from './components/layout/Navbar';
+import { ToastProvider } from './contexts/ToastContext';
+
+import AdminRoute from './components/auth/AdminRoute';
+import ProtectedRoute from './components/auth/ProtectedRoute';
+
 import Footer from './components/layout/Footer';
-import Home from './pages/Home';
+import Navbar from './components/layout/Navbar';
+
+import ErrorBoundary from './components/ui/ErrorBoundary';
+import Toast from './components/ui/Toast';
+
+import Council from './pages/Council';
 import Events from './pages/Events';
 import EventDetails from './pages/EventDetails';
-import ReserveSeats from './pages/ReserveSeats';
-import MyTickets from './pages/MyTickets';
+import Home from './pages/Home';
 import Login from './pages/Login';
-import Register from './pages/Register';
+import MyTickets from './pages/MyTickets';
 import Profile from './pages/Profile';
+import Register from './pages/Register';
+import ReserveSeats from './pages/ReserveSeats';
+
 import AdminDashboard from './pages/admin/Dashboard';
 import AdminEvents from './pages/admin/Events';
-import AdminUsers from './pages/admin/Users';
 import AdminReservations from './pages/admin/Reservations';
-import ProtectedRoute from './components/auth/ProtectedRoute';
-import AdminRoute from './components/auth/AdminRoute';
-import Toast from './components/ui/Toast';
-import Council from './pages/Council';
+import AdminUsers from './pages/admin/Users';
+
+import BadRequest from './pages/errors/BadRequest';
+import Forbidden from './pages/errors/Forbidden';
 import NotFound from './pages/errors/NotFound';
 import ServerError from './pages/errors/ServerError';
-import Unauthorized from './pages/errors/Unauthorized';
-import Forbidden from './pages/errors/Forbidden';
-import BadRequest from './pages/errors/BadRequest';
 import ServiceUnavailable from './pages/errors/ServiceUnavailable';
-import ErrorBoundary from './components/ui/ErrorBoundary';
+import Unauthorized from './pages/errors/Unauthorized';
 
 function App() {
   return (
