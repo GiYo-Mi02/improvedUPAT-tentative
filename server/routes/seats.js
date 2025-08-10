@@ -1,5 +1,6 @@
 const express = require("express");
 const { Seat, Event, Reservation } = require("../models");
+const { Op } = require("sequelize");
 const { auth } = require("../middleware/auth");
 
 const router = express.Router();
@@ -50,7 +51,7 @@ router.post("/:seatId/hold", auth, async (req, res) => {
         section: seat.section,
         row: seat.row,
         number: seat.number,
-        price: seat.price,
+        // price removed for free CCIS events
         holdExpiry,
       },
       holdDuration: "10 minutes",
@@ -114,7 +115,7 @@ router.get("/availability/:eventId", async (req, res) => {
         "number",
         "status",
         "isVip",
-        "price",
+        // "price", // removed from public payload
         "holdExpiry",
       ],
     });
@@ -151,7 +152,7 @@ router.get("/availability/:eventId", async (req, res) => {
         "number",
         "status",
         "isVip",
-        "price",
+        // "price", // removed from public payload
         "holdExpiry",
       ],
     });

@@ -118,6 +118,8 @@ router.get("/dashboard", async (req, res) => {
 router.post(
   "/events",
   authorize("admin"),
+  // allow poster upload on create as well
+  upload.single("posterImage"),
   [
     body("title")
       .isLength({ min: 3 })
@@ -137,8 +139,8 @@ router.post(
       .isIn(["academic", "performance", "competition", "cultural"])
       .withMessage("Invalid category"),
     body("maxSeats")
-      .isInt({ min: 1, max: 1500 })
-      .withMessage("Max seats must be between 1 and 1500"),
+      .isInt({ min: 1, max: 2500 })
+      .withMessage("Max seats must be between 1 and 2500"),
   ],
   async (req, res) => {
     const t = await sequelize.transaction();
@@ -165,6 +167,11 @@ router.post(
         requiresApproval = false,
       } = req.body;
 
+      // Accept VIP count (optional); store in metadata and derive maxSeats
+      const vipCount = parseInt(req.body.vipCount || 0) || 0;
+      const FIXED_NONVIP_TOTAL = 468 + 422 + 214 + 92; // orchestra + lower + upper + lodges
+      const derivedMaxSeats = FIXED_NONVIP_TOTAL + vipCount;
+
       const event = await Event.create(
         {
           title,
@@ -177,16 +184,27 @@ router.post(
           isPaid,
           basePrice,
           vipPrice,
-          maxSeats,
-          availableSeats: maxSeats,
+          maxSeats: derivedMaxSeats,
+          availableSeats: derivedMaxSeats,
           organizer,
           requiresApproval,
           status: requiresApproval ? "draft" : "published",
+          metadata: { ...(req.body.metadata || {}), vipCount },
+          ...(req.file
+            ? { posterImage: `/uploads/posters/${req.file.filename}` }
+            : {}),
         },
         { transaction: t }
       );
 
-      await generateSeatsForEvent(event.id, maxSeats, basePrice, vipPrice, t);
+      await generateSeatsForEvent(
+        event.id,
+        event.maxSeats,
+        basePrice,
+        vipPrice,
+        t,
+        vipCount
+      );
 
       await t.commit();
       res.status(201).json({
@@ -300,14 +318,20 @@ router.put(
       .withMessage("Description must be at least 10 characters"),
   ],
   async (req, res) => {
+    const t = await sequelize.transaction();
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
+        await t.rollback();
         return res.status(400).json({ errors: errors.array() });
       }
 
-      const event = await Event.findByPk(req.params.id);
+      const event = await Event.findByPk(req.params.id, {
+        transaction: t,
+        lock: t.LOCK.UPDATE,
+      });
       if (!event) {
+        await t.rollback();
         return res.status(404).json({ message: "Event not found" });
       }
 
@@ -322,6 +346,7 @@ router.put(
         "isPaid",
         "basePrice",
         "vipPrice",
+        "maxSeats",
         "organizer",
         "status",
       ];
@@ -337,15 +362,172 @@ router.put(
         updates.posterImage = `/uploads/posters/${req.file.filename}`;
       }
 
-      await event.update(updates);
+      // Handle VIP count updates via metadata and derive max seats
+      let vipCount = (event.metadata && event.metadata.vipCount) || 0;
+      if (req.body.vipCount !== undefined) {
+        const parsed = parseInt(req.body.vipCount);
+        vipCount = Number.isNaN(parsed) ? 0 : Math.max(0, parsed);
+      }
 
-      res.json({
-        message: "Event updated successfully",
+      const FIXED_NONVIP_TOTAL = 468 + 422 + 214 + 92;
+      const derivedMaxSeats = FIXED_NONVIP_TOTAL + vipCount;
+      const originalMax = event.maxSeats;
+      const requestedMax = updates.maxSeats
+        ? parseInt(updates.maxSeats)
+        : derivedMaxSeats;
+      const finalMax = requestedMax || derivedMaxSeats;
+      const willRegenerate =
+        req.body.regenerateSeats === true ||
+        req.body.regenerateSeats === "true" ||
+        finalMax !== originalMax ||
+        req.body.vipCount !== undefined;
+
+      // Apply updates (including poster) first
+      await event.update(
+        {
+          ...updates,
+          maxSeats: finalMax,
+          metadata: { ...(event.metadata || {}), vipCount },
+          ...(req.file
+            ? { posterImage: `/uploads/posters/${req.file.filename}` }
+            : {}),
+        },
+        { transaction: t }
+      );
+
+      if (willRegenerate) {
+        // Safety checks
+        if (new Date(event.eventDate) < new Date()) {
+          await t.rollback();
+          return res
+            .status(400)
+            .json({ message: "Cannot regenerate seats for past events" });
+        }
+        const existingReservations = await Reservation.count({
+          where: { eventId: event.id },
+          transaction: t,
+        });
+        const force = req.body.force === true || req.body.force === "true";
+        if (existingReservations > 0 && !force) {
+          await t.rollback();
+          return res.status(409).json({
+            message:
+              "Event has reservations. Pass force=true to regenerate seats.",
+            existingReservations,
+          });
+        }
+
+        await generateSeatsForEvent(
+          event.id,
+          event.maxSeats,
+          event.basePrice,
+          event.vipPrice,
+          t,
+          vipCount
+        );
+      }
+
+      await t.commit();
+      return res.json({
+        message: willRegenerate
+          ? "Event updated and seats regenerated"
+          : "Event updated successfully",
         event,
       });
     } catch (error) {
+      await t.rollback();
       console.error("Update event error:", error);
-      res.status(500).json({ message: "Server error while updating event" });
+      return res
+        .status(500)
+        .json({ message: "Server error while updating event" });
+    }
+  }
+);
+
+// @route   POST /api/admin/events/:id/regenerate-seats
+// @desc    Regenerate seats for an event (DANGEROUS: deletes existing seats). Blocks if reservations exist unless force=true
+// @access  Admin
+router.post(
+  "/events/:id/regenerate-seats",
+  authorize("admin"),
+  async (req, res) => {
+    const t = await sequelize.transaction();
+    try {
+      const { maxSeats: newMaxSeats, force = false } = req.body || {};
+      const event = await Event.findByPk(req.params.id, {
+        transaction: t,
+        lock: t.LOCK.UPDATE,
+      });
+      if (!event) {
+        await t.rollback();
+        return res.status(404).json({ message: "Event not found" });
+      }
+
+      // Prevent modifications for past events
+      if (new Date(event.eventDate) < new Date()) {
+        await t.rollback();
+        return res
+          .status(400)
+          .json({ message: "Cannot regenerate seats for past events" });
+      }
+
+      const existingReservations = await Reservation.count({
+        where: { eventId: event.id },
+        transaction: t,
+      });
+      if (existingReservations > 0 && !force) {
+        await t.rollback();
+        return res.status(409).json({
+          message:
+            "Event has reservations. Pass force=true to proceed (this will invalidate seat references).",
+          existingReservations,
+        });
+      }
+
+      if (newMaxSeats) {
+        if (
+          Number.isNaN(parseInt(newMaxSeats)) ||
+          parseInt(newMaxSeats) < 1 ||
+          parseInt(newMaxSeats) > 2500
+        ) {
+          await t.rollback();
+          return res
+            .status(400)
+            .json({ message: "maxSeats must be between 1 and 2500" });
+        }
+        await event.update(
+          { maxSeats: parseInt(newMaxSeats) },
+          { transaction: t }
+        );
+      }
+
+      // Determine vipCount from event metadata unless provided
+      const vipCount =
+        req.body.vipCount !== undefined
+          ? parseInt(req.body.vipCount) || 0
+          : (event.metadata && event.metadata.vipCount) || 0;
+
+      await generateSeatsForEvent(
+        event.id,
+        event.maxSeats,
+        event.basePrice,
+        event.vipPrice,
+        t,
+        vipCount
+      );
+
+      await t.commit();
+      return res.json({
+        message: "Seats regenerated",
+        eventId: event.id,
+        maxSeats: event.maxSeats,
+      });
+    } catch (error) {
+      await t.rollback();
+      console.error("Regenerate seats error:", error);
+      res
+        .status(500)
+        .json({ message: "Server error while regenerating seats" });
     }
   }
 );
@@ -707,88 +889,56 @@ async function generateSeatsForEvent(
   maxSeats,
   basePrice,
   vipPrice,
-  transaction
+  transaction,
+  vipCount = 0
 ) {
   const seats = [];
 
   // Clear any existing seats for idempotency
   await Seat.destroy({ where: { eventId }, transaction });
 
-  // New detailed layout (total 1,196 seats) when maxSeats matches capacity
-  if (maxSeats === 1196) {
-    const layout = [
-      { key: "lower_balcony_left", total: 211, isVip: false, seatsPerRow: 23 },
-      { key: "orchestra_2", total: 156, isVip: false, seatsPerRow: 24 },
-      { key: "orchestra_3", total: 156, isVip: false, seatsPerRow: 24 },
-      { key: "orchestra_4", total: 156, isVip: false, seatsPerRow: 24 },
-      { key: "lower_balcony_right", total: 211, isVip: false, seatsPerRow: 23 },
-      { key: "lodge_left", total: 46, isVip: false, seatsPerRow: 12 },
-      { key: "lodge_right", total: 46, isVip: false, seatsPerRow: 12 },
-      { key: "upper_balcony_left", total: 107, isVip: false, seatsPerRow: 18 },
-      { key: "upper_balcony_right", total: 107, isVip: false, seatsPerRow: 18 },
-    ];
-
-    layout.forEach((section) => {
-      let created = 0;
-      let rowIndex = 0;
-      while (created < section.total) {
-        rowIndex += 1;
-        const rowLetter = String.fromCharCode(64 + rowIndex); // A,B,C...
-        for (
-          let seatNum = 1;
-          seatNum <= section.seatsPerRow && created < section.total;
-          seatNum++
-        ) {
-          created++;
-          seats.push({
-            eventId,
-            section: section.key,
-            row: rowLetter,
-            number: seatNum,
-            isVip: section.isVip,
-            price: section.isVip ? vipPrice : basePrice,
-            status: "available",
-            isReserved: false,
-          });
-        }
-      }
-    });
-
-    await Seat.bulkCreate(seats, { validate: true, transaction });
-    return;
-  }
-
-  // Fallback legacy simple layout
-  const sections = {
-    orchestra: { rows: 15, seatsPerRow: 20, isVip: false },
-    balcony: { rows: 10, seatsPerRow: 15, isVip: false },
-    lodge_left: { rows: 3, seatsPerRow: 8, isVip: false },
-    lodge_right: { rows: 3, seatsPerRow: 8, isVip: false },
-    vip: { rows: 2, seatsPerRow: 10, isVip: true },
+  // Fixed totals as per requirement
+  const totals = {
+    orchestra: 468,
+    balcony: 422 + 214, // lower + upper combined in one 'balcony' section
+    lodge_left: Math.floor(92 / 2),
+    lodge_right: Math.ceil(92 / 2),
+    vip: Math.max(0, parseInt(vipCount) || 0),
   };
-  let seatCount = 0;
-  for (const [sectionName, config] of Object.entries(sections)) {
-    for (let row = 1; row <= config.rows && seatCount < maxSeats; row++) {
-      const rowLetter = String.fromCharCode(64 + row);
-      for (
-        let seatNum = 1;
-        seatNum <= config.seatsPerRow && seatCount < maxSeats;
-        seatNum++
-      ) {
+
+  const makeSection = (name, total, isVip = false) => {
+    let remaining = total;
+    let rowIdx = 0;
+    const perRow = 30; // arbitrary compact row length
+    while (remaining > 0) {
+      rowIdx += 1;
+      const rowLetter = String.fromCharCode(64 + ((rowIdx - 1) % 26) + 1); // A..Z cycles
+      const count = Math.min(perRow, remaining);
+      for (let n = 1; n <= count; n++) {
         seats.push({
           eventId,
-          section: sectionName,
+          section: name,
           row: rowLetter,
-          number: seatNum,
-          isVip: config.isVip,
-          price: config.isVip ? vipPrice : basePrice,
+          number: n,
+          isVip,
+          price: isVip ? vipPrice : basePrice,
           status: "available",
           isReserved: false,
         });
-        seatCount++;
       }
+      remaining -= count;
     }
-  }
+  };
+
+  makeSection("orchestra", totals.orchestra, false);
+  makeSection("balcony", totals.balcony, false);
+  makeSection("lodge_left", totals.lodge_left, false);
+  makeSection("lodge_right", totals.lodge_right, false);
+  if (totals.vip > 0) makeSection("vip", totals.vip, true);
+
+  // Safety: ensure we don't exceed maxSeats
+  if (seats.length > maxSeats) seats.length = maxSeats;
+
   await Seat.bulkCreate(seats, { validate: true, transaction });
 }
 

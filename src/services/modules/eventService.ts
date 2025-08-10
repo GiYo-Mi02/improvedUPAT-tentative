@@ -1,6 +1,17 @@
 import { http, extractErrorMessage } from '../httpClient';
 
-export interface EventFilters { page?: number; limit?: number; type?: string; category?: string; status?: string; search?: string; upcoming?: boolean | string; }
+export interface EventFilters {
+  page?: number;
+  limit?: number;
+  type?: string;
+  category?: string;
+  status?: string;
+  search?: string;
+  upcoming?: boolean | string;
+  organizer?: string;
+  from?: string; // ISO string
+  to?: string;   // ISO string
+}
 
 export async function fetchEvents(filters: EventFilters = {}) {
   try {

@@ -12,7 +12,7 @@ const AdminEvents: React.FC = () => {
   })();
   const { showToast } = useToast();
   const [formOpen, setFormOpen] = useState(false);
-  const [form, setForm] = useState<any>({ title: '', eventDate: '', type: 'theater', category: 'performance', maxSeats: 100 });
+  const [form, setForm] = useState<any>({ title: '', eventDate: '', type: 'theater', category: 'performance', maxSeats: 1196, vipCount: 0 });
   const [editing, setEditing] = useState<any | null>(null);
   const [publishOpen, setPublishOpen] = useState(false);
   const [publishTarget, setPublishTarget] = useState<any | null>(null);
@@ -24,7 +24,7 @@ const AdminEvents: React.FC = () => {
   useEffect(() => { if (editPosterFile) { const url = URL.createObjectURL(editPosterFile); setEditPreview(url); return () => URL.revokeObjectURL(url); } else setEditPreview(null); }, [editPosterFile]);
 
   const openEdit = (ev: any) => {
-    setEditing(ev); setFormOpen(true); setForm({ title: ev.title, eventDate: ev.eventDate?.slice(0,16), type: ev.type, category: ev.category, maxSeats: ev.maxSeats }); setExtendedForm({ description: ev.description || '', endDate: ev.endDate ? ev.endDate.slice(0,16) : '' }); setEditPosterFile(null);
+  setEditing(ev); setFormOpen(true); setForm({ title: ev.title, eventDate: ev.eventDate?.slice(0,16), type: ev.type, category: ev.category, maxSeats: ev.maxSeats, vipCount: ev.metadata?.vipCount || 0 }); setExtendedForm({ description: ev.description || '', endDate: ev.endDate ? ev.endDate.slice(0,16) : '' }); setEditPosterFile(null);
   };
 
   const submit = async () => {
@@ -34,12 +34,29 @@ const AdminEvents: React.FC = () => {
         if (form.title) fd.append('title', form.title);
         if (form.eventDate) fd.append('eventDate', form.eventDate);
         fd.append('type', form.type); fd.append('category', form.category);
+  if (form.maxSeats) fd.append('maxSeats', String(form.maxSeats));
+  fd.append('vipCount', String(form.vipCount ?? 0));
+        // allow triggering seat regeneration when maxSeats changes
+        fd.append('regenerateSeats', 'true');
+        fd.append('force', 'true');
         if (extendedForm?.description) fd.append('description', extendedForm.description);
         if (extendedForm?.endDate) fd.append('endDate', extendedForm.endDate);
         if (editPosterFile) fd.append('posterImage', editPosterFile);
         await fetch(`${API_BASE}/admin/events/${editing.id}`, { method: 'PUT', headers: { Authorization: `Bearer ${localStorage.getItem('token') || ''}` }, body: fd });
         await update(editing.id, {}); showToast('Event updated','success');
-      } else { await create(form); showToast('Event created','success'); }
+      } else {
+        const fd = new FormData();
+        fd.append('title', form.title);
+        if (form.eventDate) fd.append('eventDate', form.eventDate);
+        fd.append('type', form.type); fd.append('category', form.category);
+  if (form.maxSeats) fd.append('maxSeats', String(form.maxSeats));
+  fd.append('vipCount', String(form.vipCount ?? 0));
+        if (extendedForm?.description) fd.append('description', extendedForm.description);
+        if (extendedForm?.endDate) fd.append('endDate', extendedForm.endDate);
+        if (editPosterFile) fd.append('posterImage', editPosterFile);
+        await create(fd);
+        showToast('Event created','success');
+      }
       setFormOpen(false); setEditing(null); setForm({ title: '', eventDate: '', type: 'theater', category: 'performance', maxSeats: 100 }); setExtendedForm(null); setEditPosterFile(null); setEditPreview(null);
     } catch (e: any) { showToast(e.message || 'Save failed','error'); }
   };
@@ -152,6 +169,11 @@ const AdminEvents: React.FC = () => {
                     <div>
                       <label className="block text-xs mb-1 text-gray-400">Max Seats</label>
                       <input type="number" className="input-luxury w-full" value={form.maxSeats} onChange={e => setForm((f: any) => ({ ...f, maxSeats: Number(e.target.value) }))} />
+                    </div>
+                    <div>
+                      <label className="block text-xs mb-1 text-gray-400">VIP Seats</label>
+                      <input type="number" min={0} className="input-luxury w-full" value={form.vipCount ?? 0} onChange={e => setForm((f: any) => ({ ...f, vipCount: Math.max(0, Number(e.target.value)) }))} />
+                      <p className="text-[10px] text-gray-500 mt-1">Non-VIP fixed totals: Orchestra 468, Lower 422, Upper 214, Lodges 92. Max seats = totals + VIP.</p>
                     </div>
                   </div>
                   <div>

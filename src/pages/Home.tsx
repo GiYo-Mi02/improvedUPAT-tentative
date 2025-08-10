@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Calendar, MapPin, Users, Sparkles, ArrowRight, Star } from 'lucide-react';
+import { Calendar, Users, Sparkles, ArrowRight, Star } from 'lucide-react';
+import EventsCalendar from '../components/events/EventsCalendar';
 import { eventsAPI } from '../services/api';
 
 interface Event {
@@ -29,25 +30,49 @@ function resolvePoster(ev: Event) {
 
 const Home: React.FC = () => {
   const [featuredEvents, setFeaturedEvents] = useState<Event[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [calendarMonth, setCalendarMonth] = useState<Date>(new Date());
+  const [monthEvents, setMonthEvents] = useState<Event[]>([]);
   // Carousel state
   const [heroIndex, setHeroIndex] = useState(0);
   const [paused, setPaused] = useState(false); // added pause state
 
   useEffect(() => {
-    const fetchFeaturedEvents = async () => {
+  const fetchFeaturedEvents = async () => {
       try {
         const response = await eventsAPI.getFeatured();
         setFeaturedEvents(response.data.events);
       } catch (error) {
         console.error('Error fetching featured events:', error);
-      } finally {
-        setLoading(false);
       }
     };
 
     fetchFeaturedEvents();
   }, []);
+
+  // Load upcoming events for the visible month
+  useEffect(() => {
+    const loadMonth = async () => {
+      const start = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1);
+      const end = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 0);
+      try {
+        const params: any = {
+          status: 'published',
+          upcoming: false,
+          page: 1,
+          limit: 200,
+          organizer: 'CCIS',
+          from: start.toISOString(),
+          to: new Date(end.getFullYear(), end.getMonth(), end.getDate(), 23, 59, 59, 999).toISOString(),
+        };
+        const res = await eventsAPI.getAll(params);
+        const evs = (res.data.events || []) as Event[];
+        setMonthEvents(evs);
+      } catch (e) {
+        // fail silent
+      }
+    };
+    loadMonth();
+  }, [calendarMonth]);
 
   // Build hero slides from events with posters (fallback if none)
   const heroSlides = (featuredEvents || [])
@@ -114,14 +139,7 @@ const Home: React.FC = () => {
 
   const active = slides[heroIndex] || slides[0];
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
-    });
-  };
+  // formatDate no longer used in calendar view
 
   return (
     <div className="min-h-screen">
@@ -138,7 +156,7 @@ const Home: React.FC = () => {
                 <img
                   src={s.img}
                   alt={s.title}
-                  className="w-full h-full object-cover object-center scale-105 md:scale-100"
+                  className="w-full h-full object-cover object-center scale-105 md:scale-100 brightness-50"
                   loading={idx === heroIndex ? 'eager' : 'lazy'}
                   onError={(e) => { (e.currentTarget as HTMLImageElement).style.display='none'; }}
                 />
@@ -222,97 +240,19 @@ const Home: React.FC = () => {
         </div>
       </section>
 
-      {/* Featured Events */}
+      {/* Calendar of Events */}
       <section className="py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
-            <h2 className="text-3xl lg:text-4xl font-heading font-normal text-white mb-4">
-              Featured Events
-            </h2>
-            <p className="text-xl text-gray-400 max-w-2xl mx-auto">
-              Don't miss these upcoming spectacular performances and cultural experiences
-            </p>
+            <h2 className="text-3xl lg:text-4xl font-heading font-normal text-white mb-4">CCIS Upcoming Events</h2>
+            <p className="text-xl text-gray-400 max-w-2xl mx-auto">Browse this month’s schedule at a glance.</p>
           </div>
-
-          {loading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {[...Array(6)].map((_, i) => (
-                <div key={i} className="card-luxury p-6 animate-pulse">
-                  <div className="bg-gray-700 h-48 rounded-lg mb-4"></div>
-                  <div className="space-y-2">
-                    <div className="bg-gray-700 h-4 rounded w-3/4"></div>
-                    <div className="bg-gray-700 h-4 rounded w-1/2"></div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {featuredEvents.map((event) => (
-                <Link 
-                  key={event.id} 
-                  to={`/events/${event.id}`}
-                  className="card-luxury p-6 hover:transform hover:scale-105 transition-all duration-300 group"
-                >
-                  <div className="relative overflow-hidden rounded-lg mb-4 bg-gradient-to-br from-luxury-gold/20 to-yellow-500/20 h-48 flex items-center justify-center">
-                    {event.posterImage || event.posterImageUrl ? (
-                      <img 
-                        src={resolvePoster(event) || ''} 
-                        alt={event.title}
-                        className="w-full h-full object-cover"
-                        onError={e => { (e.currentTarget as HTMLImageElement).style.display='none'; }}
-                      />
-                    ) : (
-                      <div className="text-center">
-                        <Calendar className="h-12 w-12 text-luxury-gold mx-auto mb-2" />
-                        <span className="text-luxury-gold font-medium">{event.type.toUpperCase()}</span>
-                      </div>
-                    )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <span className="inline-block px-3 py-1 bg-luxury-gold/20 text-luxury-gold text-xs font-medium rounded-full">
-                      {event.category.toUpperCase()}
-                    </span>
-                    
-                    <h3 className="text-lg font-semibold text-white group-hover:text-luxury-gold transition-colors line-clamp-2">
-                      {event.title}
-                    </h3>
-                    
-                    <div className="flex items-center text-gray-400 text-sm">
-                      <Calendar className="h-4 w-4 mr-2" />
-                      <span>{formatDate(event.eventDate)}</span>
-                    </div>
-                    
-                    <div className="flex items-center text-gray-400 text-sm">
-                      <MapPin className="h-4 w-4 mr-2" />
-                      <span>{event.venue}</span>
-                    </div>
-                    
-                    <div className="flex items-center justify-between pt-2">
-                      <div className="text-sm">
-                        <span className="text-green-400">{event.availableSeats}</span>
-                        <span className="text-gray-500"> / {event.totalSeats} seats</span>
-                      </div>
-                      <div className="text-luxury-gold font-semibold">
-                        {event.basePrice === 0 ? 'FREE' : `₱${event.basePrice}`}
-                      </div>
-                    </div>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          )}
-
-          <div className="text-center mt-12">
-            <Link 
-              to="/events" 
-              className="btn-secondary inline-flex items-center space-x-2"
-            >
-              <span>View All Events</span>
-              <ArrowRight className="h-4 w-4" />
-            </Link>
+          <div className="card-luxury p-6">
+            <EventsCalendar
+              events={monthEvents as any}
+              month={calendarMonth}
+              onMonthChange={setCalendarMonth}
+            />
           </div>
         </div>
       </section>

@@ -16,6 +16,18 @@ const { sequelize } = require("./config/database");
 const { success, error } = require("./utils/apiResponse");
 
 const app = express();
+const isDev = process.env.NODE_ENV !== "production";
+
+// Build allowed client origins (support multiple localhost ports)
+const defaultOrigins = ["http://localhost:5173", "http://localhost:5174"];
+const envOrigins = (process.env.CLIENT_URLS || "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+const singleOrigin = process.env.CLIENT_URL ? [process.env.CLIENT_URL] : [];
+const allowedOrigins = Array.from(
+  new Set([...defaultOrigins, ...envOrigins, ...singleOrigin])
+);
 
 // Security middleware (allow cross-origin resource loading for static posters)
 app.use(
@@ -26,15 +38,21 @@ app.use(
 );
 app.use(
   cors({
-    origin: process.env.CLIENT_URL || "http://localhost:5173",
+    origin: function (origin, callback) {
+      if (!origin) return callback(null, true); // same-origin or server-to-server
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      return callback(new Error(`CORS not allowed from origin ${origin}`));
+    },
     credentials: true,
   })
 );
 
-// Rate limiting
+// Rate limiting (relaxed in development)
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  max: isDev ? 1000 : 300,
+  standardHeaders: true,
+  legacyHeaders: false,
 });
 app.use(limiter);
 
@@ -45,17 +63,19 @@ app.use(express.urlencoded({ extended: true }));
 // Ensure uploads directory exists
 const postersDir = path.join(__dirname, "uploads", "posters");
 fs.mkdirSync(postersDir, { recursive: true });
+// Serve posters with dynamic CORS headers based on request origin
 app.use(
   "/uploads/posters",
-  express.static(postersDir, {
-    setHeaders: (res) => {
-      res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
-      res.setHeader(
-        "Access-Control-Allow-Origin",
-        process.env.CLIENT_URL || "http://localhost:5173"
-      );
-    },
-  })
+  (req, res, next) => {
+    const origin = req.headers.origin;
+    if (origin && allowedOrigins.includes(origin)) {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+      res.setHeader("Vary", "Origin");
+    }
+    res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+    next();
+  },
+  express.static(postersDir)
 );
 
 // API routes
@@ -71,6 +91,16 @@ app.get("/api/health", (req, res) => {
     status: "OK",
     message: "CCIS Ticketing System API is running",
     timestamp: new Date().toISOString(),
+  });
+});
+
+// Debug endpoint for rate-limit/CORS diagnostics
+app.get("/api/_debug/rate-limit", (req, res) => {
+  res.status(200).json({
+    ok: true,
+    now: new Date().toISOString(),
+    ip: req.ip,
+    origin: req.headers.origin || null,
   });
 });
 

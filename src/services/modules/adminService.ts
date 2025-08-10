@@ -2,9 +2,21 @@ import { http, extractErrorMessage } from '../httpClient';
 
 export async function getDashboard() { try { const r = await http.get('/admin/dashboard'); return r.data; } catch (e) { throw new Error(extractErrorMessage(e)); } }
 
-export async function adminCreateEvent(data: any) { try { const r = await http.post('/admin/events', data); return r.data; } catch (e) { throw new Error(extractErrorMessage(e)); } }
+export async function adminCreateEvent(data: any) {
+	try {
+		const isFD = typeof FormData !== 'undefined' && data instanceof FormData;
+		const r = await http.post('/admin/events', data, isFD ? { headers: { 'Content-Type': 'multipart/form-data' } } : undefined);
+		return r.data;
+	} catch (e) { throw new Error(extractErrorMessage(e)); }
+}
 export async function adminGetEvents(params: any = {}) { try { const r = await http.get('/admin/events', { params }); return r.data; } catch (e) { throw new Error(extractErrorMessage(e)); } }
-export async function adminUpdateEvent(id: string, data: any) { try { const r = await http.put(`/admin/events/${id}`, data); return r.data; } catch (e) { throw new Error(extractErrorMessage(e)); } }
+export async function adminUpdateEvent(id: string, data: any) {
+	try {
+		const isFD = typeof FormData !== 'undefined' && data instanceof FormData;
+		const r = await http.put(`/admin/events/${id}`, data, isFD ? { headers: { 'Content-Type': 'multipart/form-data' } } : undefined);
+		return r.data;
+	} catch (e) { throw new Error(extractErrorMessage(e)); }
+}
 export async function adminDeleteEvent(id: string) { try { const r = await http.delete(`/admin/events/${id}`); return r.data; } catch (e) { throw new Error(extractErrorMessage(e)); } }
 export async function adminPublishEvent(id: string, data: FormData) { try { const r = await http.put(`/admin/events/${id}/publish`, data, { headers: { 'Content-Type': 'multipart/form-data' } }); return r.data; } catch (e) { throw new Error(extractErrorMessage(e)); } }
 

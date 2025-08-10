@@ -16,6 +16,23 @@ http.interceptors.response.use(
     const status = err.response?.status;
     if (status === 401) {
       localStorage.removeItem('token');
+      // Redirect to 401 page unless already there or on login/register
+      const path = window.location.pathname;
+      if (path !== '/login' && path !== '/register' && path !== '/401') {
+        window.location.href = '/401';
+      }
+    } else if (status === 403) {
+      if (window.location.pathname !== '/403') window.location.href = '/403';
+    } else if (status === 404) {
+      // Let route-based 404 handle unknown pages; only redirect for API misses when on detail pages
+      const path = window.location.pathname;
+      if (/\/events\//.test(path) && path !== '/404') {
+        window.location.href = '/404';
+      }
+    } else if (status === 500) {
+      if (window.location.pathname !== '/500') window.location.href = '/500';
+    } else if (status === 503) {
+      if (window.location.pathname !== '/503') window.location.href = '/503';
     }
     return Promise.reject(err);
   }

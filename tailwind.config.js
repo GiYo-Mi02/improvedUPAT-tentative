@@ -5,23 +5,25 @@ export default {
     extend: {
       colors: {
         primary: {
-          50: "#fdf4ff",
-          100: "#fae8ff",
-          200: "#f5d0fe",
-          300: "#f0abfc",
-          400: "#e879f9",
-          500: "#d946ef",
-          600: "#c026d3",
-          700: "#a21caf",
-          800: "#86198f",
-          900: "#701a75",
+          50: "#e8f3ee",
+          100: "#cfe7de",
+          200: "#a4d1c0",
+          300: "#79baa1",
+          400: "#4ea382",
+          500: "#288a67",
+          600: "#1f6d52",
+          700: "#195740",
+          800: "#144334",
+          900: "#123424", // main green
         },
         luxury: {
-          gold: "#D4AF37",
-          champagne: "#F7E7CE",
-          deep: "#1a1a2e",
-          night: "#16213e",
-          accent: "#e94560",
+          gold: "#febc01", // yellow highlight
+          champagne: "#cdcece", // gray per request, used for subtle text/accents
+          deep: "#0b1f18", // deep greenish background
+          night: "#123424", // main green as dark tone
+          accent: "#26a269", // supportive green accent
+          black: "#0b0b0b",
+          white: "#ffffff",
         },
       },
       fontFamily: {

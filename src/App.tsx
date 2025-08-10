@@ -19,6 +19,13 @@ import ProtectedRoute from './components/auth/ProtectedRoute';
 import AdminRoute from './components/auth/AdminRoute';
 import Toast from './components/ui/Toast';
 import Council from './pages/Council';
+import NotFound from './pages/errors/NotFound';
+import ServerError from './pages/errors/ServerError';
+import Unauthorized from './pages/errors/Unauthorized';
+import Forbidden from './pages/errors/Forbidden';
+import BadRequest from './pages/errors/BadRequest';
+import ServiceUnavailable from './pages/errors/ServiceUnavailable';
+import ErrorBoundary from './components/ui/ErrorBoundary';
 
 function App() {
   return (
@@ -28,6 +35,7 @@ function App() {
           <div className="min-h-screen flex flex-col">
             <Navbar />
             <main className="flex-1">
+              <ErrorBoundary>
               <Routes>
                 {/* Public Routes */}
                 <Route path="/" element={<Home />} />
@@ -75,7 +83,16 @@ function App() {
                     <AdminReservations />
                   </AdminRoute>
                 } />
+                {/* Error Routes */}
+                <Route path="/401" element={<Unauthorized />} />
+                <Route path="/403" element={<Forbidden />} />
+                <Route path="/400" element={<BadRequest />} />
+                <Route path="/500" element={<ServerError />} />
+                <Route path="/503" element={<ServiceUnavailable />} />
+                {/* Catch-all 404 */}
+                <Route path="*" element={<NotFound />} />
               </Routes>
+              </ErrorBoundary>
             </main>
             <Footer />
           </div>

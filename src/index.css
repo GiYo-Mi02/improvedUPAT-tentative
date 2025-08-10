@@ -10,7 +10,7 @@
   }
   
   body {
-    @apply bg-gradient-to-br from-luxury-deep via-luxury-night to-gray-900 font-sans antialiased;
+  @apply bg-gradient-to-br from-luxury-deep via-luxury-night to-black font-sans antialiased;
     margin: 0;
     min-height: 100vh;
     font-family: 'Inter', system-ui, sans-serif;
@@ -25,38 +25,38 @@
   /* Typography */
   .heading-primary {
     font-family: 'Marcellus', serif;
-    @apply text-4xl font-normal text-white leading-tight;
+  @apply text-4xl font-normal text-white leading-tight;
   }
   
   .heading-secondary {
     font-family: 'Marcellus', serif;
-    @apply text-2xl font-normal text-white leading-tight;
+  @apply text-2xl font-normal text-white leading-tight;
   }
   
   .heading-tertiary {
     font-family: 'Marcellus', serif;
-    @apply text-xl font-normal text-white leading-tight;
+  @apply text-xl font-normal text-white leading-tight;
   }
   
   /* Buttons */
   .btn-primary {
-    @apply bg-gradient-to-r from-luxury-gold to-yellow-500 text-luxury-deep font-semibold px-6 py-3 rounded-lg shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300;
+    @apply bg-gradient-to-r from-primary-900 to-primary-600 text-white font-semibold px-6 py-3 rounded-lg shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300;
   }
   
   .btn-secondary {
-    @apply bg-transparent border-2 border-luxury-gold text-luxury-gold font-semibold px-6 py-3 rounded-lg hover:bg-luxury-gold hover:text-luxury-deep transition-all duration-300;
+    @apply bg-transparent border-2 border-luxury-gold text-luxury-gold font-semibold px-6 py-3 rounded-lg hover:bg-luxury-gold hover:text-black transition-all duration-300;
   }
   
   .card-luxury {
-    @apply bg-gradient-to-br from-gray-800/90 to-gray-900/90 backdrop-blur-sm border border-gray-700/50 rounded-xl shadow-2xl;
+    @apply bg-gradient-to-br from-black/70 to-luxury-night/70 backdrop-blur-sm border border-primary-900/40 rounded-xl shadow-2xl;
   }
   
   .input-luxury {
-    @apply bg-gray-800/50 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:border-luxury-gold focus:ring-2 focus:ring-luxury-gold/20 focus:outline-none transition-all duration-200;
+    @apply bg-black/50 border border-primary-900/50 rounded-lg px-4 py-3 text-white placeholder-luxury-champagne focus:border-luxury-gold focus:ring-2 focus:ring-luxury-gold/30 focus:outline-none transition-all duration-200;
   }
   
   .seat-available {
-    @apply bg-green-500 hover:bg-green-600 cursor-pointer;
+    @apply bg-primary-600 hover:bg-primary-500 cursor-pointer;
   }
   
   .seat-reserved {
@@ -64,7 +64,7 @@
   }
   
   .seat-vip {
-    @apply bg-luxury-gold hover:bg-yellow-500 cursor-pointer;
+    @apply bg-luxury-gold hover:bg-yellow-400 text-black cursor-pointer;
   }
   
   .seat-selected {

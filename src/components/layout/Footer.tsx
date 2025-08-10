@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Theater, Mail, Phone, MapPin, Facebook, Twitter, Instagram } from 'lucide-react';
+import {Mail, Phone, MapPin, Facebook, Twitter, Instagram } from 'lucide-react';
 
 const Footer: React.FC = () => {
   const currentYear = new Date().getFullYear();
@@ -12,21 +12,20 @@ const Footer: React.FC = () => {
           {/* Brand */}
           <div className="col-span-1 md:col-span-2">
             <div className="flex items-center space-x-3 mb-4">
-              <div className="bg-gradient-to-r from-luxury-gold to-yellow-500 p-2 rounded-lg">
-                <Theater className="h-6 w-6 text-luxury-deep" />
+              <div className="p-1 rounded-lg">
+                <img src="/CCIS-Logo.svg" alt="CCIS Logo" className="h-12 w-12" />
               </div>
               <div>
                 <h3 className="text-xl font-display font-bold text-white">
-                  UPAT Ticketing System
+                  CCIS
                 </h3>
                 <p className="text-sm text-luxury-champagne opacity-80">
-                  University of Makati Performing Arts and Theater
+                  College of Computing and Information Sciences
                 </p>
               </div>
             </div>
             <p className="text-gray-400 text-sm mb-4 max-w-md">
-              Experience world-class performances and cultural events at the University of Makati's 
-              premier performing arts venue. Book your tickets online for a seamless theater experience.
+             The CCIS is dedicated to fostering innovation and excellence in computing and information sciences, providing a platform for students to excel in technology and the arts.
             </p>
             <div className="flex space-x-4">
               <a 
@@ -118,7 +117,7 @@ const Footer: React.FC = () => {
               </div>
               <div className="flex items-center space-x-2">
                 <Mail className="h-4 w-4 text-luxury-gold flex-shrink-0" />
-                <span className="text-gray-400 text-sm">upat@umak.edu.ph</span>
+                <span className="text-gray-400 text-sm">CCIS@Umak.edu.ph</span>
               </div>
             </div>
           </div>
@@ -127,7 +126,7 @@ const Footer: React.FC = () => {
         {/* Bottom Section */}
         <div className="mt-8 pt-8 border-t border-gray-700 flex flex-col md:flex-row justify-between items-center">
           <div className="text-gray-400 text-sm">
-            &copy; {currentYear} University of Makati Performing Arts and Theater. All rights reserved.
+            &copy; {currentYear} University of Makati, College of Information Sciences, All rights reserved.
           </div>
           <div className="flex space-x-6 mt-4 md:mt-0">
             <a href="#" className="text-gray-400 hover:text-luxury-gold text-sm transition-colors">

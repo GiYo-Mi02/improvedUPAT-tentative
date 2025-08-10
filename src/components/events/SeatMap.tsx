@@ -17,7 +17,8 @@ interface SeatMapProps {
   onSelect?: (seat: Seat | null) => void;
 }
 
-const sectionOrder = ['vip', 'orchestra', 'balcony', 'lodge_left', 'lodge_right'];
+// Hide VIP section per requirement; VIP seats (if any) won’t render here
+const sectionOrder = ['orchestra', 'balcony', 'lodge_left', 'lodge_right'];
 
 export const SeatMap: React.FC<SeatMapProps> = ({ seats, onSelect }) => {
   const { selected, selectSeat, release, remainingSeconds, isExpired } = useSeatSelection();
