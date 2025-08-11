@@ -60,4 +60,13 @@ export const adminAPI = {
   getReservations: (params = {}) => api.get('/admin/reservations', { params }),
 };
 
+// Gallery API
+export const galleryAPI = {
+  list: () => api.get('/gallery'),
+  create: (data: FormData) => api.post('/gallery', data, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  adminList: () => api.get('/gallery/admin'),
+  update: (id: string, data: FormData | any) => api.put(`/gallery/${id}`, data),
+  remove: (id: string) => api.delete(`/gallery/${id}`),
+};
+
 export default api;

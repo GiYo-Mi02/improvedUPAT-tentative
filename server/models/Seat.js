@@ -77,6 +77,8 @@ const Seat = sequelize.define(
         unique: true,
         fields: ["event_id", "section", "row", "number"], // composite uniqueness
       },
+      { fields: ["event_id"] },
+      { fields: ["event_id", "status"] },
     ],
   }
 );

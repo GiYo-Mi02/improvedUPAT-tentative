@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Calendar, Users, Sparkles, ArrowRight, Star } from 'lucide-react';
+import { Calendar, Users, Sparkles, ArrowRight, Star, X } from 'lucide-react';
 import EventsCalendar from '../components/events/EventsCalendar';
 import Typewriter from '../components/ui/Typewriter';
 import Reveal from '../components/ui/Reveal';
-import { eventsAPI } from '../services/api';
+import { eventsAPI, galleryAPI } from '../services/api';
 
 interface Event {
   id: string;
@@ -37,6 +37,17 @@ const Home: React.FC = () => {
   // Carousel state
   const [heroIndex, setHeroIndex] = useState(0);
   const [paused, setPaused] = useState(false); // added pause state
+  // Gallery
+  const [gallery, setGallery] = useState<Array<{id:string; title:string; description?:string; imagePath:string}>>([]);
+  const [showModal, setShowModal] = useState(false);
+  const [activeItem, setActiveItem] = useState<{id:string; title:string; description?:string; imagePath:string} | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const trackRef = useRef<HTMLDivElement | null>(null);
+  const pausedRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    pausedRef.current = paused;
+  }, [paused]);
 
   useEffect(() => {
   const fetchFeaturedEvents = async () => {
@@ -49,6 +60,14 @@ const Home: React.FC = () => {
     };
 
     fetchFeaturedEvents();
+
+    // load gallery
+    (async () => {
+      try {
+        const res = await galleryAPI.list();
+        setGallery(res.data.items || []);
+      } catch {}
+    })();
   }, []);
 
   // Load upcoming events for the visible month
@@ -142,6 +161,39 @@ const Home: React.FC = () => {
   const active = slides[heroIndex] || slides[0];
 
   // formatDate no longer used in calendar view
+
+  // Seamless rAF-driven marquee for gallery
+  useEffect(() => {
+    const container = containerRef.current;
+    const track = trackRef.current;
+    if (!container || !track) return;
+    if (gallery.length === 0) return;
+
+    const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (prefersReduced) return; // respect reduced motion
+
+    let raf = 0;
+    let x = 0; // current translateX
+    const speed = 0.4; // px per frame at ~60fps; tweak for taste
+
+    const step = () => {
+      if (!pausedRef.current) {
+        x -= speed;
+        // Track width is effectively two copies; loop back after half width
+        const halfWidth = track.scrollWidth / 2;
+        if (Math.abs(x) >= halfWidth) {
+          x += halfWidth;
+        }
+        track.style.transform = `translate3d(${x}px, 0, 0)`;
+      }
+      raf = requestAnimationFrame(step);
+    };
+
+    raf = requestAnimationFrame(step);
+    return () => {
+      cancelAnimationFrame(raf);
+    };
+  }, [gallery]);
 
   return (
     <div className="min-h-screen">
@@ -260,6 +312,71 @@ const Home: React.FC = () => {
           </Reveal>
         </div>
       </section>
+
+      {/* Gallery Section */}
+      {gallery.length > 0 && (
+        <section className="py-14">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <Reveal className="text-center mb-8" variant="up">
+              <h2 className="text-3xl lg:text-4xl font-heading font-normal text-white mb-2">Moments Gallery</h2>
+              <p className="text-gray-400">Highlights from our community events</p>
+            </Reveal>
+
+            {/* Horizontal continuous scroll (rAF-driven, seamless) */}
+            <div
+              ref={containerRef}
+              className="relative overflow-hidden rounded-xl"
+              onMouseEnter={() => setPaused(true)}
+              onMouseLeave={() => setPaused(false)}
+            >
+              <div ref={trackRef} className="flex gap-4 will-change-transform" style={{ transform: 'translate3d(0,0,0)' }}>
+                {[...gallery, ...gallery].map((g, idx) => (
+                  <div
+                    key={g.id + '-' + idx}
+                    className="w-84 h-60 md:w-80 md:h-48 lg:w-96 lg:h-56 shrink-0 relative group cursor-pointer"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => { setActiveItem(g); setShowModal(true); }}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setActiveItem(g); setShowModal(true); } }}
+                  >
+          <img src={/^https?:/i.test(g.imagePath) ? g.imagePath : `${SERVER_BASE}${g.imagePath.startsWith('/') ? g.imagePath : '/' + g.imagePath}`}
+             alt={g.title}
+             className="w-full h-full object-cover rounded-lg" />
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-colors" />
+                    <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/60 to-transparent text-white text-sm">
+                      <div className="font-semibold line-clamp-1">{g.title}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Image Modal */}
+      {showModal && activeItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
+          <div className="absolute inset-0 bg-black/70" onClick={() => setShowModal(false)} />
+          <div className="relative bg-luxury-night border border-white/10 rounded-xl max-w-6xl w-full overflow-hidden shadow-2xl">
+            <button className="absolute top-3 right-3 text-white/80 hover:text-white" onClick={() => setShowModal(false)} aria-label="Close">
+              <X className="w-6 h-6" />
+            </button>
+            <div className="grid md:grid-cols-2 gap-0">
+              <div className="aspect-video md:aspect-auto">
+       <img src={/^https?:/i.test(activeItem.imagePath) ? activeItem.imagePath : `${SERVER_BASE}${activeItem.imagePath.startsWith('/') ? activeItem.imagePath : '/' + activeItem.imagePath}`}
+         alt={activeItem.title}
+         className="w-full h-full object-cover" />
+              </div>
+              <div className="p-5">
+                <h3 className="text-2xl font-heading text-white mb-2">{activeItem.title}</h3>
+                <br></br>
+                <p className="text-gray-300 whitespace-pre-wrap">{activeItem.description || '—'}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* CTA Section */}
       <section className="py-20 bg-gradient-to-r from-luxury-deep to-luxury-night">

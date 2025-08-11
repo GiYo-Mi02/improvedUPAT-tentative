@@ -14,7 +14,7 @@ export default {
           600: "#1f6d52",
           700: "#195740",
           800: "#144334",
-          900: "#123424", // main green
+          900: "#123424",
         },
         luxury: {
           gold: "#febc01", // yellow highlight
@@ -27,7 +27,7 @@ export default {
         },
       },
       fontFamily: {
-        sans: ["Inter", "system-ui", "sans-serif"],
+        sans: ["Montserrat", "system-ui", "sans-serif"],
         display: ["Marcellus", "serif"],
         heading: ["Marcellus", "serif"],
       },

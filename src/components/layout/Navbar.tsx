@@ -42,6 +42,7 @@ const Navbar: React.FC = () => {
     { to: '/admin/events', label: 'Manage Events', icon: Calendar },
     { to: '/admin/users', label: 'Users', icon: User },
     { to: '/admin/reservations', label: 'Reservations', icon: Ticket },
+  { to: '/admin/gallery', label: 'Gallery', icon: Theater },
   ];
 
   return (

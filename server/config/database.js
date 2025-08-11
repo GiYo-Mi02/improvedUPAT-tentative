@@ -10,10 +10,10 @@ const sequelize = new Sequelize(
     dialect: "mysql",
     logging: process.env.NODE_ENV === "development" ? console.log : false,
     pool: {
-      max: 5,
-      min: 0,
-      acquire: 30000,
-      idle: 10000,
+      max: Number(process.env.DB_POOL_MAX || 10),
+      min: Number(process.env.DB_POOL_MIN || 0),
+      acquire: Number(process.env.DB_POOL_ACQUIRE || 30000),
+      idle: Number(process.env.DB_POOL_IDLE || 10000),
     },
     define: {
       timestamps: true,

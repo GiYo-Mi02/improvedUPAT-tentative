@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Users, Quote, Award, Calendar, Shield } from 'lucide-react';
+import { Users, Quote, Award, Shield } from 'lucide-react';
 import Reveal from '../components/ui/Reveal';
 
 interface Officer {
@@ -174,20 +174,21 @@ const Council: React.FC = () => {
         {/* History */}
         <section className="grid md:grid-cols-3 gap-10 items-start">
           <Reveal className="md:col-span-1 flex flex-col items-start gap-4" variant="up">
-            <div className="bg-gradient-to-r from-luxury-gold to-yellow-500 w-14 h-14 rounded-xl flex items-center justify-center shadow-lg">
-              <Calendar className="h-7 w-7 text-luxury-deep" />
+            <div className="bg-white w-30 h-22 rounded-full flex items-center justify-center shadow-lg">
+              <img src="./official_logo.png" alt=""/>
             </div>
-            <h2 className="text-2xl font-heading font-normal text-white">Our History</h2>
-            <p className="text-sm text-luxury-gold/80 uppercase tracking-wider">Evolution & Impact</p>
+            
           </Reveal>
           <div className="md:col-span-2 space-y-5">
+            <h2 className="text-2xl font-heading font-normal text-white">Our History</h2>
+            <p className="text-sm text-luxury-gold/80 uppercase tracking-wider">Evolution & Impact</p>
             {historyParagraphs.map((p,i) => (
               <Reveal key={i} as="p" className="text-gray-300 leading-relaxed" variant="up" delay={i*90}>{p}</Reveal>
             ))}
           </div>
          
         </section>
-
+<hr></hr>
         {/* Officers */}
         <section>
           <div className="flex flex-col items-center gap-6 mb-10">

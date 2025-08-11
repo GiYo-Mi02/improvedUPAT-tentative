@@ -6,7 +6,7 @@ const crypto = require("crypto");
 const { OAuth2Client } = require("google-auth-library");
 
 const generateToken = (userId) =>
-  jwt.sign({ id: userId }, process.env.JWT_SECRET || "fallback_secret", {
+  jwt.sign({ id: userId }, process.env.JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRE || "7d",
   });
 

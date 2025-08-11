@@ -129,6 +129,14 @@ const Reservation = sequelize.define(
         }
       },
     },
+  },
+  {
+    indexes: [
+      { fields: ["user_id"] },
+      { fields: ["event_id"] },
+      { fields: ["seat_id"] },
+      { unique: true, fields: ["reservationCode"] },
+    ],
   }
 );
 

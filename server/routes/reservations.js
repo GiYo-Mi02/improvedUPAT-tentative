@@ -22,17 +22,21 @@ router.post(
       .withMessage("Valid payment method is required"),
   ],
   async (req, res) => {
+    const { sequelize } = require("../config/database");
+    const t = await sequelize.transaction();
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
+        await t.rollback();
         return res.status(400).json({ errors: errors.array() });
       }
-
       const { eventId, seatId, paymentMethod, paymentReference } = req.body;
 
-      // Verify seat availability
-      const seat = await Seat.findByPk(seatId, {
+      // Lock the seat row for update and load event
+      let seat = await Seat.findByPk(seatId, {
         include: [{ model: Event, as: "event" }],
+        transaction: t,
+        lock: t.LOCK.UPDATE,
       });
 
       if (!seat) {
@@ -53,11 +57,15 @@ router.post(
 
       // Check if seat hold has expired
       if (seat.holdExpiry && seat.holdExpiry < new Date()) {
-        await seat.update({
-          status: "available",
-          isReserved: false,
-          holdExpiry: null,
-        });
+        await seat.update(
+          {
+            status: "available",
+            isReserved: false,
+            holdExpiry: null,
+          },
+          { transaction: t }
+        );
+        await t.rollback();
         return res.status(400).json({ message: "Seat hold has expired" });
       }
 
@@ -84,6 +92,7 @@ router.post(
       });
 
       if (existingReservation) {
+        await t.rollback();
         return res
           .status(400)
           .json({ message: "You already have a reservation for this event" });
@@ -93,22 +102,29 @@ router.post(
       const totalAmount = seat.price || 0;
 
       // Create reservation
-      const reservation = await Reservation.create({
-        userId: req.user.id,
-        eventId,
-        seatId,
-        totalAmount,
-        paymentMethod,
-        paymentReference,
-        paymentStatus: totalAmount === 0 ? "paid" : "pending",
-        status: totalAmount === 0 ? "confirmed" : "pending",
-      });
+      const reservation = await Reservation.create(
+        {
+          userId: req.user.id,
+          eventId,
+          seatId,
+          totalAmount,
+          paymentMethod,
+          paymentReference,
+          paymentStatus: totalAmount === 0 ? "paid" : "pending",
+          status: totalAmount === 0 ? "confirmed" : "pending",
+        },
+        { transaction: t }
+      );
 
       // Update seat status
-      await seat.update({
-        status: totalAmount === 0 ? "sold" : "reserved",
-        holdExpiry: null,
-      });
+      await seat.update(
+        {
+          status: totalAmount === 0 ? "sold" : "reserved",
+          holdExpiry: null,
+          isReserved: true,
+        },
+        { transaction: t }
+      );
 
       // Generate QR code
       const qrData = {
@@ -131,20 +147,26 @@ router.post(
         },
       });
 
-      await reservation.update({ qrCode: qrCodeDataURL });
+      await reservation.update({ qrCode: qrCodeDataURL }, { transaction: t });
 
       // Create payment record for free events
       if (totalAmount === 0) {
-        await Payment.create({
-          reservationId: reservation.id,
-          amount: 0,
-          paymentMethod: "free",
-          status: "completed",
-          processedAt: new Date(),
-        });
+        await Payment.create(
+          {
+            reservationId: reservation.id,
+            amount: 0,
+            paymentMethod: "free",
+            status: "completed",
+            processedAt: new Date(),
+          },
+          { transaction: t }
+        );
       }
 
-      // Send confirmation email
+      // Commit transaction before slow operations
+      await t.commit();
+
+      // Send confirmation email (outside transaction)
       try {
         await sendTicketEmail({
           to: req.user.email,
@@ -182,6 +204,9 @@ router.post(
         qrCode: qrCodeDataURL,
       });
     } catch (error) {
+      try {
+        await t.rollback();
+      } catch (_) {}
       console.error("Create reservation error:", error);
       res
         .status(500)

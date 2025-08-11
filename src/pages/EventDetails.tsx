@@ -60,8 +60,8 @@ const EventDetails: React.FC = () => {
                 <div>
                   <h1 className="heading-primary mb-3">{event.title}</h1>
                   <div className="flex flex-wrap gap-2 text-xs">
-                    <span className="bg-luxury-deep/50 border border-luxury-gold/20 px-2 py-1 rounded text-white">{event.type}</span>
-                    <span className="bg-luxury-deep/50 border border-luxury-gold/20 px-2 py-1 rounded text-white">{event.category}</span>
+                    <span className="bg-luxury-deep/50 border border-luxury-gold/20 px-2 py-1 rounded capitalize text-white">{event.type}</span>
+                    <span className="bg-luxury-deep/50 border border-luxury-gold/20 px-2 py-1 rounded capitalize text-white">{event.category}</span>
                     <span className="bg-luxury-deep/50 border border-luxury-gold/20 px-2 py-1 rounded capitalize text-white">{event.status}</span>
                   </div>
                 </div>
@@ -82,10 +82,6 @@ const EventDetails: React.FC = () => {
                   <div className="card-luxury p-3 space-y-1">
                     <div className="text-gray-400">Available</div>
                     <div className="text-luxury-gold font-semibold">{event.statistics?.availableSeats ?? '—'}</div>
-                  </div>
-                  <div className="card-luxury p-3 space-y-1">
-                    <div className="text-gray-400">Pricing</div>
-                    <div className="text-white font-medium">{event.isPaid ? `Base ₱${event.basePrice}${event.vipPrice ? ` / VIP ₱${event.vipPrice}` : ''}` : 'Free'}</div>
                   </div>
                   {event.endDate && (
                     <div className="card-luxury p-3 space-y-1">

@@ -69,6 +69,9 @@ const User = sequelize.define(
         }
       },
     },
+  },
+  {
+    indexes: [{ unique: true, fields: ["email"] }, { fields: ["role"] }],
   }
 );
 

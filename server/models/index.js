@@ -3,6 +3,7 @@ const Event = require("./Event");
 const Seat = require("./Seat");
 const Reservation = require("./Reservation");
 const Payment = require("./Payment");
+const GalleryItem = require("./GalleryItem");
 
 // User associations
 User.hasMany(Reservation, {
@@ -59,4 +60,5 @@ module.exports = {
   Seat,
   Reservation,
   Payment,
+  GalleryItem,
 };

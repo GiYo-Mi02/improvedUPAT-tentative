@@ -130,6 +130,7 @@ const Events: React.FC = () => {
         {!loading && !error && (
           <div className="space-y-6">
             <Reveal variant="up"><h2 className="heading-secondary">Events This Month</h2></Reveal>
+            <hr></hr>
             {thisMonthOpen.length === 0 ? (
               <div className="text-gray-400">No open events this month.</div>
             ) : (
@@ -175,6 +176,7 @@ const Events: React.FC = () => {
         {!loading && !error && (
           <div className="space-y-6 mt-12">
             <Reveal variant="up"><h2 className="heading-secondary">Upcoming Events</h2></Reveal>
+            <hr></hr>
             {upcoming.length === 0 ? (
               <div className="text-gray-400">No upcoming events.</div>
             ) : (

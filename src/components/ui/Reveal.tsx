@@ -79,7 +79,7 @@ const Reveal: React.FC<RevealProps> = ({
       style={style}
       className={cx(
         'will-change-[opacity,transform] transform transition-all ease-out',
-        visible ? 'opacity-100 translate-x-0 translate-y-0' : cx('opacity-0', hiddenTransform),
+        visible ? 'opacity-100 translate-x-0 translate-y-0 content-center' : cx('opacity-0', hiddenTransform),
         className
       )}
     >

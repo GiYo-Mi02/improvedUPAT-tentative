@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
+const compression = require("compression");
 const rateLimit = require("express-rate-limit");
 require("dotenv").config();
 const path = require("path");
@@ -11,11 +12,13 @@ const eventRoutes = require("./routes/events");
 const seatRoutes = require("./routes/seats");
 const reservationRoutes = require("./routes/reservations");
 const adminRoutes = require("./routes/admin");
+const galleryRoutes = require("./routes/gallery");
 
 const { sequelize } = require("./config/database");
 const { success, error } = require("./utils/apiResponse");
 
 const app = express();
+app.set("trust proxy", 1);
 const isDev = process.env.NODE_ENV !== "production";
 
 // Build allowed client origins (support multiple localhost ports)
@@ -43,6 +46,8 @@ app.use(
     crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
   })
 );
+// Response compression
+app.use(compression());
 app.use(
   cors({
     origin: function (origin, callback) {
@@ -80,9 +85,29 @@ app.use(
       res.setHeader("Vary", "Origin");
     }
     res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+    // Cache images for a week
+    res.setHeader("Cache-Control", "public, max-age=604800, immutable");
     next();
   },
   express.static(postersDir)
+);
+
+// Ensure gallery directory exists and serve with same headers
+const galleryDir = path.join(__dirname, "uploads", "gallery");
+fs.mkdirSync(galleryDir, { recursive: true });
+app.use(
+  "/uploads/gallery",
+  (req, res, next) => {
+    const origin = req.headers.origin;
+    if (origin && allowedOrigins.includes(origin)) {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+      res.setHeader("Vary", "Origin");
+    }
+    res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+    res.setHeader("Cache-Control", "public, max-age=604800, immutable");
+    next();
+  },
+  express.static(galleryDir)
 );
 
 // API routes
@@ -91,6 +116,7 @@ app.use("/api/events", eventRoutes);
 app.use("/api/seats", seatRoutes);
 app.use("/api/reservations", reservationRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/gallery", galleryRoutes);
 
 // Health check endpoint
 app.get("/api/health", (req, res) => {
@@ -133,6 +159,15 @@ const PORT = process.env.PORT || 3001;
 // Database connection and server start
 async function startServer() {
   try {
+    // Fail fast on missing critical envs
+    const required = ["JWT_SECRET"]; // DB envs are optional if defaults used
+    const missing = required.filter((k) => !process.env[k]);
+    if (missing.length) {
+      throw Object.assign(
+        new Error(`Missing env vars: ${missing.join(", ")}`),
+        { statusCode: 500 }
+      );
+    }
     await sequelize.authenticate();
     console.log("✅ Database connection has been established successfully.");
 
