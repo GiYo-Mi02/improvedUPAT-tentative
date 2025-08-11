@@ -7,6 +7,10 @@
     "start": "node app.js",
     "dev": "nodemon app.js",
     "email:test": "node scripts/test-email.js",
+  "events:reset:dry": "node scripts/reset-events.js --dry-run",
+  "events:reset": "node scripts/reset-events.js --yes",
+  "events:reset:future": "node scripts/reset-events.js --yes --only-future",
+  "events:reset:keep-posters": "node scripts/reset-events.js --yes --keep-posters",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

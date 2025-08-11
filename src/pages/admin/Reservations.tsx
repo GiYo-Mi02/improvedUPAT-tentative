@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAdminReservations } from '../../hooks/useAdminReservations';
-import { adminBulkApproveReservations, adminMandatoryInvite } from '../../services/modules/adminService';
+import { adminBulkApproveReservations, adminMandatoryInvite, adminGetBulkJob } from '../../services/modules/adminService';
 import { useToast } from '../../contexts/ToastContext';
 
 const Reservations: React.FC = () => {
@@ -10,7 +10,27 @@ const Reservations: React.FC = () => {
   const [bulkLimit, setBulkLimit] = useState<number>(500);
   const [busy, setBusy] = useState<boolean>(false);
   const [inviteOpen, setInviteOpen] = useState<boolean>(false);
-  const [invite, setInvite] = useState<{ eventId: string; emails: string; message: string; sendTickets: boolean; limit: number }>({ eventId: '', emails: '', message: '', sendTickets: false, limit: 1000 });
+  const [invite, setInvite] = useState<{ eventId: string; emails: string; message: string; sendTickets: boolean; limit: number; concurrency?: number }>({ eventId: '', emails: '', message: '', sendTickets: false, limit: 1000, concurrency: 5 });
+  const [jobOpen, setJobOpen] = useState<boolean>(false);
+  const [job, setJob] = useState<{ id: string; status: 'queued' | 'running' | 'completed' | 'failed'; total: number; notified: number; ticketed: number; failed: number } | null>(null);
+  const [jobError, setJobError] = useState<string | null>(null);
+
+  // Poll bulk job status while open
+  React.useEffect(() => {
+    if (!jobOpen || !job?.id) return;
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const data = await adminGetBulkJob(job.id);
+        if (!cancelled) setJob({ id: data.id, status: data.status as any, total: data.total, notified: data.notified, ticketed: data.ticketed, failed: data.failed });
+      } catch (e: any) {
+        if (!cancelled) setJobError(e.message || 'Failed to fetch job status');
+      }
+    };
+    const iv = setInterval(tick, 1200);
+    tick();
+    return () => { cancelled = true; clearInterval(iv); };
+  }, [jobOpen, job?.id]);
 
   const badge = (s: string) => {
     const base = 'px-2 py-0.5 rounded text-xs font-medium';
@@ -138,9 +158,17 @@ const Reservations: React.FC = () => {
                   try {
                     setBusy(true);
                     const emails = invite.emails.split(/[\n,]/).map(s => s.trim()).filter(Boolean);
-                    const r = await adminMandatoryInvite(invite.eventId, { emails, message: invite.message, sendTickets: invite.sendTickets, limit: invite.limit });
-                    showToast(r.message || 'Invites sent','success');
-                    setInviteOpen(false);
+                    const r = await adminMandatoryInvite(invite.eventId, { emails, message: invite.message, sendTickets: invite.sendTickets, limit: invite.limit, background: true, concurrency: invite.concurrency });
+                    if (r?.jobId) {
+                      setInviteOpen(false);
+                      setJob({ id: r.jobId, status: 'queued', total: r.total || emails.length, notified: 0, ticketed: 0, failed: 0 });
+                      setJobError(null);
+                      setJobOpen(true);
+                      showToast('Bulk invite started','success');
+                    } else {
+                      showToast(r.message || 'Invites sent','success');
+                      setInviteOpen(false);
+                    }
                   } catch (e: any) {
                     showToast(e.message || 'Invite failed','error');
                   } finally {
@@ -148,6 +176,45 @@ const Reservations: React.FC = () => {
                   }
                 }}>Send</button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Bulk Job Progress Modal */}
+        {jobOpen && job && (
+          <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+            <div className="card-luxury p-6 w-full max-w-lg relative">
+              {job.status === 'completed' || job.status === 'failed' ? (
+                <button className="absolute top-2 right-2 text-gray-400 hover:text-white" onClick={() => { setJobOpen(false); setJob(null); }}>✕</button>
+              ) : null}
+              <h3 className="heading-tertiary mb-4">Bulk Invite Progress</h3>
+              <div className="space-y-3">
+                <div className="text-sm text-gray-300">Status: <span className="font-medium capitalize">{job.status}</span></div>
+                <div className="text-xs text-gray-400">Total: {job.total} • Notified: {job.notified} • Ticketed: {job.ticketed} • Errors: {job.failed}</div>
+                {jobError && <div className="text-xs text-rose-400">{jobError}</div>}
+                {(() => {
+                  const progress = Math.min(100, Math.round((job.notified / Math.max(1, job.total)) * 100));
+                  return (
+                    <div className="w-full">
+                      <div className="h-2 w-full bg-luxury-deep/60 rounded-full overflow-hidden border border-luxury-gold/20">
+                        <div className="h-full bg-luxury-gold transition-all" style={{ width: `${progress}%` }} />
+                      </div>
+                      <div className="mt-1 text-[10px] text-gray-400">{progress}%</div>
+                    </div>
+                  );
+                })()}
+                {job.status === 'completed' && (
+                  <div className="text-xs text-emerald-300">Done. Issued {job.ticketed} ticket(s); {job.failed} failure(s).</div>
+                )}
+                {job.status === 'failed' && (
+                  <div className="text-xs text-rose-300">Job failed. Check server logs for details.</div>
+                )}
+              </div>
+              {job.status === 'completed' || job.status === 'failed' ? (
+                <div className="flex justify-end pt-5"><button className="btn-primary px-4 py-2" onClick={() => { setJobOpen(false); setJob(null); }}>Close</button></div>
+              ) : (
+                <div className="flex justify-end pt-5"><button className="btn-secondary px-4 py-2" onClick={() => { setJobOpen(false); /* allow hiding while it continues */ }}>Hide</button></div>
+              )}
             </div>
           </div>
         )}

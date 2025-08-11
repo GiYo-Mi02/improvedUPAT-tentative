@@ -34,9 +34,16 @@ export async function adminBulkApproveReservations(eventId: string, limit: numbe
 	} catch (e) { throw new Error(extractErrorMessage(e)); }
 }
 
-export async function adminMandatoryInvite(eventId: string, payload: { emails?: string[]; message?: string; sendTickets?: boolean; limit?: number }) {
+export async function adminMandatoryInvite(eventId: string, payload: { emails?: string[]; message?: string; sendTickets?: boolean; limit?: number; background?: boolean; concurrency?: number }) {
 	try {
 		const r = await http.post(`/admin/events/${eventId}/mandatory-invite`, payload);
 		return r.data;
+	} catch (e) { throw new Error(extractErrorMessage(e)); }
+}
+
+export async function adminGetBulkJob(jobId: string) {
+	try {
+		const r = await http.get(`/admin/bulk-jobs/${jobId}`);
+		return r.data as { id: string; status: string; total: number; notified: number; ticketed: number; failed: number; errors: any[] };
 	} catch (e) { throw new Error(extractErrorMessage(e)); }
 }

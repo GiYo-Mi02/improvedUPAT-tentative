@@ -15,7 +15,7 @@ const AdminUsers: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <h1 className="heading-primary">Admin Users</h1>
+            <h1 className="heading-primary">Users</h1>
             <p className="text-gray-400 text-sm">Search users, filter by role, and toggle account status.</p>
             {/* Role Group Segments: Admins vs Clients */}
             <div className="mt-3 inline-flex rounded-lg bg-luxury-deep/50 border border-luxury-gold/10 overflow-hidden">

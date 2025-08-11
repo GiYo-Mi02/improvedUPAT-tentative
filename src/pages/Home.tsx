@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { Link } from 'react-router-dom';
 import { Calendar, Users, Sparkles, ArrowRight, Star, X } from 'lucide-react';
-import EventsCalendar from '../components/events/EventsCalendar';
+const EventsCalendarLazy = lazy(() => import('../components/events/EventsCalendar'));
 import Typewriter from '../components/ui/Typewriter';
 import Reveal from '../components/ui/Reveal';
 import { eventsAPI, galleryAPI } from '../services/api';
@@ -34,6 +34,7 @@ const Home: React.FC = () => {
   const [featuredEvents, setFeaturedEvents] = useState<Event[]>([]);
   const [calendarMonth, setCalendarMonth] = useState<Date>(new Date());
   const [monthEvents, setMonthEvents] = useState<Event[]>([]);
+  const [showCalendar, setShowCalendar] = useState(false);
   // Carousel state
   const [heroIndex, setHeroIndex] = useState(0);
   const [paused, setPaused] = useState(false); // added pause state
@@ -44,6 +45,7 @@ const Home: React.FC = () => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const trackRef = useRef<HTMLDivElement | null>(null);
   const pausedRef = useRef<boolean>(false);
+  const calendarRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     pausedRef.current = paused;
@@ -70,17 +72,31 @@ const Home: React.FC = () => {
     })();
   }, []);
 
-  // Load upcoming events for the visible month
+  // Lazily load the calendar when its section becomes visible
   useEffect(() => {
+    const node = calendarRef.current;
+    if (!node || showCalendar) return;
+    const io = new IntersectionObserver((entries) => {
+      if (entries.some(e => e.isIntersecting)) {
+        setShowCalendar(true);
+        io.disconnect();
+      }
+    }, { threshold: 0.2, rootMargin: '0px 0px -80px 0px' });
+    io.observe(node);
+    return () => io.disconnect();
+  }, [showCalendar]);
+
+  // Fetch month events when calendar is shown or month changes
+  useEffect(() => {
+    if (!showCalendar) return;
     const loadMonth = async () => {
       const start = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1);
       const end = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 0);
       try {
         const params: any = {
           status: 'published',
-          upcoming: false,
           page: 1,
-          limit: 200,
+          limit: 150,
           organizer: 'CCIS',
           from: start.toISOString(),
           to: new Date(end.getFullYear(), end.getMonth(), end.getDate(), 23, 59, 59, 999).toISOString(),
@@ -88,12 +104,10 @@ const Home: React.FC = () => {
         const res = await eventsAPI.getAll(params);
         const evs = (res.data.events || []) as Event[];
         setMonthEvents(evs);
-      } catch (e) {
-        // fail silent
-      }
+      } catch {}
     };
     loadMonth();
-  }, [calendarMonth]);
+  }, [showCalendar, calendarMonth]);
 
   // Build hero slides from events with posters (fallback if none)
   const heroSlides = (featuredEvents || [])
@@ -174,7 +188,7 @@ const Home: React.FC = () => {
 
     let raf = 0;
     let x = 0; // current translateX
-    const speed = 0.4; // px per frame at ~60fps; tweak for taste
+    const speed = 1; // px per frame at ~60fps; tweak for taste
 
     const step = () => {
       if (!pausedRef.current) {
@@ -212,6 +226,8 @@ const Home: React.FC = () => {
                   alt={s.title}
                   className="w-full h-full object-cover object-center scale-105 md:scale-100 brightness-50"
                   loading={idx === heroIndex ? 'eager' : 'lazy'}
+                  fetchPriority={idx === heroIndex ? 'high' : 'low'}
+                  sizes="100vw"
                   onError={(e) => { (e.currentTarget as HTMLImageElement).style.display='none'; }}
                 />
               ) : (
@@ -297,18 +313,24 @@ const Home: React.FC = () => {
       </section>
 
       {/* Calendar of Events */}
-      <section className="py-20">
+  <section className="py-20" ref={calendarRef}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <Reveal className="text-center mb-12" variant="up">
             <h2 className="text-3xl lg:text-4xl font-heading font-normal text-white mb-4">CCIS Upcoming Events</h2>
             <p className="text-xl text-gray-400 max-w-2xl mx-auto">Browse this month’s schedule at a glance.</p>
           </Reveal>
           <Reveal className="card-luxury p-6" variant="up" delay={80}>
-            <EventsCalendar
-              events={monthEvents as any}
-              month={calendarMonth}
-              onMonthChange={setCalendarMonth}
-            />
+            {showCalendar ? (
+              <Suspense fallback={<div className="text-gray-400">Loading calendar…</div>}>
+                <EventsCalendarLazy
+                  events={monthEvents as any}
+                  month={calendarMonth}
+                  onMonthChange={setCalendarMonth}
+                />
+              </Suspense>
+            ) : (
+              <div className="text-gray-400">Preparing calendar…</div>
+            )}
           </Reveal>
         </div>
       </section>
@@ -339,9 +361,13 @@ const Home: React.FC = () => {
                     onClick={() => { setActiveItem(g); setShowModal(true); }}
                     onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setActiveItem(g); setShowModal(true); } }}
                   >
-          <img src={/^https?:/i.test(g.imagePath) ? g.imagePath : `${SERVER_BASE}${g.imagePath.startsWith('/') ? g.imagePath : '/' + g.imagePath}`}
-             alt={g.title}
-             className="w-full h-full object-cover rounded-lg" />
+       <img
+         src={/^https?:/i.test(g.imagePath) ? g.imagePath : `${SERVER_BASE}${g.imagePath.startsWith('/') ? g.imagePath : '/' + g.imagePath}`}
+         alt={g.title}
+         loading="lazy"
+         decoding="async"
+         sizes="(min-width: 1024px) 384px, (min-width: 768px) 320px, 336px"
+         className="w-full h-full object-cover rounded-lg" />
                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-colors" />
                     <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/60 to-transparent text-white text-sm">
                       <div className="font-semibold line-clamp-1">{g.title}</div>
