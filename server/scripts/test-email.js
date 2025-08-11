@@ -8,7 +8,7 @@ async function main() {
   try {
     const info = await sendNotificationEmail({
       to,
-      subject: "UPAT Ticketing - Email Test",
+      subject: "CCIS Ticketing - Email Test",
       message:
         "<p>If you can read this, SMTP is configured. In development without credentials, check the Ethereal preview link printed in the server console.</p>",
       userName: "Tester",

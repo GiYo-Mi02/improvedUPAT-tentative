@@ -2,17 +2,17 @@ require("dotenv").config();
 const { User } = require("../models");
 (async () => {
   const admin = await User.findOne({
-    where: { email: "admin@upat.local" },
+    where: { email: "admin@ccis.local" },
     paranoid: false,
   });
   if (!admin) {
     await User.create({
       name: "Admin",
-      email: "admin@upat.local",
+      email: "admin@ccis.local",
       password: "Admin123!",
       role: "admin",
     });
-    console.log("Admin created: admin@upat.local / Admin123!");
+    console.log("Admin created: admin@ccis.local / Admin123!");
   } else {
     console.log("Admin exists");
   }

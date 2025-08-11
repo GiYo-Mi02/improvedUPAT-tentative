@@ -3,7 +3,7 @@ const { User } = require("../models");
 
 async function createAdmin() {
   try {
-    const adminEmail = "admin@upat.local";
+    const adminEmail = "admin@ccis.local";
     const adminPassword = "Admin123!";
 
     // Check if admin already exists

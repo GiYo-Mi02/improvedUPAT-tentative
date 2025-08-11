@@ -117,7 +117,7 @@ router.post(
         basePrice = 0,
         vipPrice = 0,
         maxSeats = 100,
-        organizer = "UPAT",
+        organizer = "CCIS",
         requiresApproval = false,
       } = req.body;
 

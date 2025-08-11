@@ -97,28 +97,52 @@ const sendTicketEmail = async ({
       minute: "2-digit",
     });
 
+    // Prepare inline QR via CID; fall back to data URL if provided
+    let attachments = [];
+    let qrImgTag = "";
+    if (qrCode && typeof qrCode === "string") {
+      if (qrCode.startsWith("data:image")) {
+        // keep data URL directly for broad client support
+        qrImgTag = `<img src="${qrCode}" alt="QR Code" />`;
+      } else if (qrCode.includes("base64,")) {
+        // legacy support; convert to CID
+        const b64 = qrCode.split("base64,")[1];
+        const cid = `qrcode-${reservation.reservationCode}@ccis`;
+        attachments.push({
+          filename: `ticket-${reservation.reservationCode}.png`,
+          content: b64,
+          encoding: "base64",
+          cid,
+        });
+        qrImgTag = `<img src="cid:${cid}" alt="QR Code" />`;
+      } else {
+        // assume URL that email client can fetch
+        qrImgTag = `<img src="${qrCode}" alt="QR Code" />`;
+      }
+    }
+
     const emailHTML = `
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>UPAT Ticket Confirmation</title>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Marcellus&family=Inter:wght@400;600;700&display=swap" />
-  <style>
+  <!DOCTYPE html>
+  <html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CCIS Ticket Confirmation</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Marcellus&family=Inter:wght@400;600;700&display=swap" />
+    <style>
     .gold{color:#d4af37}.champagne{color:#f7e7ce}
-    body{margin:0;padding:24px;background:#0b0f19;font-family:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:#0f172a}
+    body{margin:0;padding:24px;background:#0b0f19;font-family:'Inter', 'Marcellus', sans-serif;color:#0f172a}
     .wrapper{max-width:640px;margin:0 auto}
     .card{background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 12px 30px rgba(0,0,0,.25);border:1px solid rgba(212,175,55,.2)}
     .header{padding:28px 28px 18px;background:linear-gradient(135deg,#0b0f19,#101827);color:#f3f4f6;position:relative}
     .header:after{content:"";position:absolute;left:0;right:0;bottom:0;height:4px;background:linear-gradient(90deg,#d4af37,#e3c766,#d4af37)}
-  h1{margin:0;font-size:22px;letter-spacing:.5px;font-weight:700;font-family:'Marcellus',serif}
+    h1{margin:0;font-size:22px;letter-spacing:.5px;font-weight:700;font-family:'Marcellus', serif}
     .sub{margin:6px 0 0;font-size:13px;color:#cbd5e1}
     .content{padding:24px 28px 8px}
     .greeting{font-size:16px;color:#0f172a;margin:0 0 14px}
     .lead{margin:0 0 18px;color:#334155;font-size:14px}
     .ticket{border:1px dashed rgba(212,175,55,.6);border-radius:12px;padding:16px;background:linear-gradient(180deg,#fff,#fff9f0)}
-  .section-title{font-size:13px;text-transform:uppercase;letter-spacing:1.2px;color:#6b7280;margin:0 0 10px;font-family:'Marcellus',serif}
+    .section-title{font-size:13px;text-transform:uppercase;letter-spacing:1.2px;color:#6b7280;margin:0 0 10px;font-family:'Marcellus', serif}
     .row{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f1f5f9}
     .row:last-child{border-bottom:0}
     .label{color:#475569;font-weight:600;font-size:13px}
@@ -133,82 +157,74 @@ const sendTicketEmail = async ({
     .note li{margin:6px 0}
     .signoff{margin:18px 0 24px;color:#334155;font-size:14px}
     .footer{background:#f8fafc;padding:16px 20px;color:#64748b;font-size:12px;text-align:center;border-top:1px solid #e2e8f0}
-  </style>
-</head>
-<body>
-  <div class="wrapper">
+    </style>
+  </head>
+  <body>
+    <div class="wrapper">
     <div class="card">
       <div class="header">
-        <h1><span class="gold">UPAT</span> Ticket Confirmation</h1>
-        <p class="sub">University of Makati • Performing Arts & Theater</p>
+  <h1><span class="gold">CCIS</span> Ticket Confirmation</h1>
+  <p class="sub">University of Makati • CCIS</p>
       </div>
       <div class="content">
-        <p class="greeting">Hello ${userName},</p>
-        <p class="lead">Your reservation has been confirmed. Below are your ticket details.</p>
+      <p class="greeting">Hello ${userName},</p>
+      <p class="lead">Your reservation has been confirmed. Below are your ticket details.</p>
 
-        <div class="ticket">
-          <p class="section-title">Ticket Details</p>
-          <div class="row"><span class="label">Reservation Code: </span><span class="value gold">${
-            reservation.reservationCode
-          }</span></div>
-          <div class="row"><span class="label">Event: </span><span class="value">${
-            event.title
-          }</span></div>
-          <div class="row"><span class="label">Date & Time: </span><span class="value">${eventDate}</span></div>
-          <div class="row"><span class="label">Venue: </span><span class="value">${
-            event.venue
-          }</span></div>
-          <div class="row"><span class="label">Seat: </span><span class="value">${seatInfo} ${
+      <div class="ticket">
+        <p class="section-title">Ticket Details</p>
+        <div class="row"><span class="label">Reservation Code: </span><span class="value gold">${
+          reservation.reservationCode
+        }</span></div>
+        <div class="row"><span class="label">Event: </span><span class="value">${
+          event.title
+        }</span></div>
+        <div class="row"><span class="label">Date & Time: </span><span class="value">${eventDate}</span></div>
+        <div class="row"><span class="label">Venue: </span><span class="value">${
+          event.venue
+        }</span></div>
+        <div class="row"><span class="label">Seat: </span><span class="value">${seatInfo} ${
       seat.isVip ? "(VIP)" : ""
     }</span></div>
-          <div class="row"><span class="label">Status: </span><span class="value success">${reservation.status.toUpperCase()}</span></div>
-        </div>
+        <div class="row"><span class="label">Status: </span><span class="value success">${reservation.status.toUpperCase()}</span></div>
+      </div>
 
-        <div class="qr">
-          <div class="frame">
-            <img src="${qrCode}" alt="QR Code" />
-          </div>
-          <small>Show this code at the entrance • ${
-            reservation.reservationCode
-          }</small>
+      <div class="qr">
+        <div class="frame">
+        ${
+          qrImgTag ||
+          '<div style="color:#64748b;font-size:12px">QR code unavailable</div>'
+        }
         </div>
+        <small>Show this code at the entrance • ${
+          reservation.reservationCode
+        }</small>
+      </div>
 
-        <div class="note">
-          <strong class="champagne">Before you go</strong>
-          <ul>
-            <li>Please arrive at least 30 minutes before the event starts.</li>
-            <li>Bring a valid ID for verification.</li>
-            <li>Screenshots of this QR code are accepted.</li>
-            <li>Tickets are non-transferable and non-refundable.</li>
-          </ul>
-        </div>
+      <div class="note">
+        <strong class="champagne">Before you go</strong>
+        <ul>
+        <li>Please arrive at least 30 minutes before the event starts.</li>
+        <li>Bring a valid ID for verification.</li>
+        <li>Screenshots of this QR code are accepted.</li>
+        <li>Tickets are non-transferable and non-refundable.</li>
+        </ul>
+      </div>
 
-        <p class="signoff">See you at <strong>${
-          event.title
-        }</strong>!<br/>— UPAT Ticketing Team</p>
+  <p class="signoff">See you at <strong>${
+    event.title
+  }</strong>!<br/>— CCIS Ticketing Team</p>
       </div>
       <div class="footer">
-        <p>This is an automated message. Please do not reply.</p>
-        <p>&copy; ${new Date().getFullYear()} University of Makati • Performing Arts & Theater</p>
+  <p>This is an automated message. Please do not reply.</p>
+  <p>&copy; ${new Date().getFullYear()} University of Makati • CCIS</p>
       </div>
     </div>
-  </div>
-</body>
-</html>`;
-
-    // Attach QR image only if a valid data URL is provided
-    const attachments = [];
-    if (qrCode && typeof qrCode === "string" && qrCode.includes("base64,")) {
-      attachments.push({
-        filename: `ticket-${reservation.reservationCode}.png`,
-        content: qrCode.split("base64,")[1],
-        encoding: "base64",
-        cid: "qrcode",
-      });
-    }
+    </div>
+  </body>
+  </html>`;
 
     const mailOptions = {
-      from: process.env.EMAIL_FROM || "UPAT Ticketing <noreply@upat.edu.ph>",
+      from: process.env.EMAIL_FROM || "CCIS Ticketing <noreply@ccis.edu.ph>",
       to,
       subject: `🎭 Ticket Confirmation - ${event.title} | ${reservation.reservationCode}`,
       html: emailHTML,
@@ -249,19 +265,19 @@ const sendNotificationEmail = async ({ to, subject, message, userName }) => {
 </head>
 <body>
   <div class="card">
-    <div class="header"><h2 style="margin:0;font-size:18px"><span style="color:#d4af37">UPAT</span> Notification</h2></div>
+  <div class="header"><h2 style="margin:0;font-size:18px"><span style="color:#d4af37">CCIS</span> Notification</h2></div>
     <div class="content">
       <p style="margin:0 0 10px">Hello ${userName},</p>
       <div>${message}</div>
-      <p style="margin-top:18px">— UPAT Team</p>
+  <p style="margin-top:18px">— CCIS Team</p>
     </div>
-    <div class="footer">&copy; ${new Date().getFullYear()} University of Makati • Performing Arts & Theater</div>
+    <div class="footer">&copy; ${new Date().getFullYear()} University of Makati • CCIS</div>
   </div>
 </body>
 </html>`;
 
     const info = await transporter.sendMail({
-      from: process.env.EMAIL_FROM || "UPAT Ticketing <noreply@upat.edu.ph>",
+      from: process.env.EMAIL_FROM || "CCIS Ticketing <noreply@ccis.edu.ph>",
       to,
       subject,
       html: emailHTML,
