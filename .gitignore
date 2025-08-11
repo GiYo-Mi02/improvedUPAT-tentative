@@ -12,6 +12,22 @@ dist
 dist-ssr
 *.local
 
+# Environment files (keep examples)
+.env
+.env.*
+!.env.example
+server/.env
+server/.env.*
+!server/.env.example
+
+# Certificates (do not commit private keys or CA files)
+server/certs/*
+!server/certs/.gitkeep
+
+# Runtime/uploads (user content)
+server/uploads/**
+!server/uploads/.gitkeep
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
