@@ -7,6 +7,7 @@ const multer = require("multer");
 const path = require("path");
 const { sequelize } = require("../config/database");
 const { sendTicketEmail } = require("../utils/emailService");
+const { sendNotificationEmail } = require("../utils/emailService");
 
 const router = express.Router();
 
@@ -751,6 +752,285 @@ router.get("/reservations", async (req, res) => {
       .json({ message: "Server error while fetching reservations" });
   }
 });
+
+// @route   PUT /api/admin/reservations/bulk-approve
+// @desc    Approve all pending reservations for an event (optionally limited)
+// @access  Admin/Staff
+router.put("/reservations/bulk-approve", async (req, res) => {
+  const { eventId, limit = 1000 } = req.body || {};
+  if (!eventId) return res.status(400).json({ message: "eventId is required" });
+  try {
+    const pending = await Reservation.findAll({
+      where: { eventId, status: "pending" },
+      order: [["createdAt", "ASC"]],
+      limit: Math.min(parseInt(limit) || 1000, 2000),
+      include: [
+        { model: Event, as: "event" },
+        { model: Seat, as: "seat" },
+        { model: User, as: "user", attributes: ["id", "name", "email"] },
+      ],
+    });
+
+    let success = 0;
+    for (const r of pending) {
+      const t = await sequelize.transaction();
+      try {
+        // skip past events
+        if (new Date(r.event.eventDate) < new Date()) {
+          await t.rollback();
+          continue;
+        }
+        await r.update(
+          {
+            status: "confirmed",
+            paymentStatus:
+              parseFloat(r.totalAmount || 0) > 0 ? r.paymentStatus : "paid",
+          },
+          { transaction: t }
+        );
+        await r.seat.update(
+          { status: "sold", isReserved: true, holdExpiry: null },
+          { transaction: t }
+        );
+        await t.commit();
+        success += 1;
+
+        // send ticket email best-effort
+        if (!r.emailSent) {
+          try {
+            // Ensure QR exists before sending
+            if (!r.qrCode) {
+              try {
+                const QRCode = require("qrcode");
+                const qrData = {
+                  reservationId: r.id,
+                  reservationCode: r.reservationCode,
+                  eventId: r.event.id,
+                  seatInfo: `${r.seat.section.toUpperCase()}-${r.seat.row}${
+                    r.seat.number
+                  }`,
+                  userName: r.user.name,
+                  eventTitle: r.event.title,
+                };
+                const qrCodeDataURL = await QRCode.toDataURL(
+                  JSON.stringify(qrData)
+                );
+                await r.update({ qrCode: qrCodeDataURL });
+              } catch (e) {
+                console.warn(
+                  "[Bulk Approve] QR regeneration failed for",
+                  r.id,
+                  e.message
+                );
+              }
+            }
+            await sendTicketEmail({
+              to: r.user.email,
+              userName: r.user.name,
+              reservation: r,
+              event: r.event,
+              seat: r.seat,
+              qrCode: r.qrCode,
+            });
+            await r.update({ emailSent: true });
+          } catch (err) {
+            console.warn("[Bulk Approve] email failed for", r.id, err.message);
+          }
+        }
+      } catch (e) {
+        await t.rollback();
+        console.error("Bulk approve item failed:", e.message);
+      }
+    }
+
+    return res.json({
+      message: `Approved ${success} reservation(s)`,
+      approved: success,
+      attempted: pending.length,
+    });
+  } catch (error) {
+    console.error("Bulk approve error:", error);
+    res.status(500).json({ message: "Server error during bulk approve" });
+  }
+});
+
+// @route   POST /api/admin/events/:id/mandatory-invite
+// @desc    Send bulk notifications and optionally auto-issue tickets to provided emails or to first N students
+// @access  Admin
+router.post(
+  "/events/:id/mandatory-invite",
+  authorize("admin"),
+  async (req, res) => {
+    try {
+      const event = await Event.findByPk(req.params.id);
+      if (!event) return res.status(404).json({ message: "Event not found" });
+      if (new Date(event.eventDate) < new Date())
+        return res
+          .status(400)
+          .json({ message: "Cannot invite for past event" });
+
+      let {
+        emails = [],
+        message = "",
+        sendTickets = false,
+        limit = 1000,
+      } = req.body || {};
+      if (!Array.isArray(emails)) emails = [];
+      limit = Math.min(parseInt(limit) || 1000, 2000);
+
+      // If no emails provided, target up to N active students
+      if (emails.length === 0) {
+        const students = await User.findAll({
+          where: { role: { [Op.in]: ["student", "user"] }, isActive: true },
+          limit,
+        });
+        emails = students.map((u) => u.email);
+      } else if (emails.length > limit) {
+        emails = emails.slice(0, limit);
+      }
+
+      let notified = 0;
+      let ticketed = 0;
+
+      for (const email of emails) {
+        // Ensure user exists
+        let user = await User.findOne({ where: { email } });
+        if (!user) {
+          user = await User.create({
+            name: email.split("@")[0],
+            email,
+            password: Math.random().toString(36).slice(2, 10),
+            role: "student",
+            isActive: true,
+          });
+        }
+
+        // Send notification email (best-effort)
+        try {
+          await sendNotificationEmail({
+            to: email,
+            subject: `Mandatory Attendance: ${event.title}`,
+            message:
+              message ||
+              `You are required to attend ${event.title} on ${new Date(
+                event.eventDate
+              ).toLocaleString()}.`,
+            userName: user.name,
+          });
+          notified += 1;
+        } catch (e) {
+          console.warn("Notify failed for", email, e.message);
+        }
+
+        if (sendTickets) {
+          // Allocate first available seat
+          const t = await sequelize.transaction();
+          try {
+            const seat = await Seat.findOne({
+              where: {
+                eventId: event.id,
+                status: "available",
+                isReserved: false,
+              },
+              order: [
+                ["section", "ASC"],
+                ["row", "ASC"],
+                ["number", "ASC"],
+              ],
+              transaction: t,
+              lock: t.LOCK.UPDATE,
+            });
+            if (!seat) {
+              await t.rollback();
+              continue;
+            }
+
+            // create reservation
+            const reservation = await Reservation.create(
+              {
+                userId: user.id,
+                eventId: event.id,
+                seatId: seat.id,
+                status: "confirmed",
+                totalAmount: 0,
+                paymentStatus: "paid",
+              },
+              { transaction: t }
+            );
+            await seat.update(
+              { status: "sold", isReserved: true },
+              { transaction: t }
+            );
+            await t.commit();
+            ticketed += 1;
+
+            // Email ticket (best-effort)
+            try {
+              // Ensure QR exists for the new reservation
+              if (!reservation.qrCode) {
+                try {
+                  const QRCode = require("qrcode");
+                  const qrData = {
+                    reservationId: reservation.id,
+                    reservationCode: reservation.reservationCode,
+                    eventId: event.id,
+                    seatInfo: `${seat.section.toUpperCase()}-${seat.row}${
+                      seat.number
+                    }`,
+                    userName: user.name,
+                    eventTitle: event.title,
+                  };
+                  const qrCodeDataURL = await QRCode.toDataURL(
+                    JSON.stringify(qrData)
+                  );
+                  await reservation.update({ qrCode: qrCodeDataURL });
+                } catch (e) {
+                  console.warn(
+                    "[Mandatory Invite] QR generation failed for",
+                    email,
+                    e.message
+                  );
+                }
+              }
+              await sendTicketEmail({
+                to: email,
+                userName: user.name,
+                reservation,
+                event,
+                seat,
+                qrCode: reservation.qrCode,
+              });
+              await reservation.update({ emailSent: true });
+            } catch (e) {
+              console.warn("Ticket email failed for", email, e.message);
+            }
+          } catch (err) {
+            await t.rollback();
+            console.error("Ticketing failed for", email, err.message);
+          }
+        }
+      }
+
+      // Mark event as mandatory in metadata
+      await event.update({
+        metadata: { ...(event.metadata || {}), mandatory: true },
+      });
+
+      return res.json({
+        message: `Invited ${notified} user(s)${
+          sendTickets ? `, issued ${ticketed} ticket(s)` : ""
+        }`,
+        notified,
+        ticketed,
+      });
+    } catch (error) {
+      console.error("Mandatory invite error:", error);
+      return res
+        .status(500)
+        .json({ message: "Server error during mandatory invites" });
+    }
+  }
+);
 
 // @route   PUT /api/admin/reservations/:id/approve
 // @desc    Approve (confirm) a pending reservation (ticket)

@@ -19,7 +19,14 @@ const app = express();
 const isDev = process.env.NODE_ENV !== "production";
 
 // Build allowed client origins (support multiple localhost ports)
-const defaultOrigins = ["http://localhost:5173", "http://localhost:5174"];
+const defaultOrigins = [
+  "http://localhost:5173",
+  "http://localhost:5174",
+  "http://localhost:4173", // vite preview
+  "http://127.0.0.1:5173",
+  "http://127.0.0.1:5174",
+  "http://127.0.0.1:4173",
+];
 const envOrigins = (process.env.CLIENT_URLS || "")
   .split(",")
   .map((s) => s.trim())

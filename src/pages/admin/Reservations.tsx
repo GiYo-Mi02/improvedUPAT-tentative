@@ -1,8 +1,16 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useAdminReservations } from '../../hooks/useAdminReservations';
+import { adminBulkApproveReservations, adminMandatoryInvite } from '../../services/modules/adminService';
+import { useToast } from '../../contexts/ToastContext';
 
 const Reservations: React.FC = () => {
   const { items, loading, error, page, totalPages, setPage, setStatus, status, setEventId, approve, reject } = useAdminReservations();
+  const { showToast } = useToast();
+  const [bulkEventId, setBulkEventId] = useState<string>('');
+  const [bulkLimit, setBulkLimit] = useState<number>(500);
+  const [busy, setBusy] = useState<boolean>(false);
+  const [inviteOpen, setInviteOpen] = useState<boolean>(false);
+  const [invite, setInvite] = useState<{ eventId: string; emails: string; message: string; sendTickets: boolean; limit: number }>({ eventId: '', emails: '', message: '', sendTickets: false, limit: 1000 });
 
   const badge = (s: string) => {
     const base = 'px-2 py-0.5 rounded text-xs font-medium';
@@ -28,7 +36,25 @@ const Reservations: React.FC = () => {
               <option value="cancelled">Cancelled</option>
               <option value="used">Used</option>
             </select>
-            <input placeholder="Event ID" className="input-luxury w-48" onChange={e => setEventId(e.target.value || undefined)} />
+            <input placeholder="Filter by Event ID" className="input-luxury w-48" onChange={e => setEventId(e.target.value || undefined)} />
+            <div className="flex items-center gap-2">
+              <input placeholder="Bulk Event ID" value={bulkEventId} onChange={e => setBulkEventId(e.target.value)} className="input-luxury w-48" />
+              <input type="number" min={1} max={2000} value={bulkLimit} onChange={e => setBulkLimit(Math.max(1, Math.min(2000, Number(e.target.value))))} className="input-luxury w-24" />
+        <button className="btn-primary text-xs px-3 py-2 disabled:opacity-50" disabled={!bulkEventId || busy} onClick={async () => {
+                try {
+                  setBusy(true);
+                  const r = await adminBulkApproveReservations(bulkEventId, bulkLimit);
+                  showToast(r.message || 'Bulk approved','success');
+          // if filtering by event, keep in sync
+          setEventId(bulkEventId);
+                } catch (e: any) {
+                  showToast(e.message || 'Bulk approve failed','error');
+                } finally {
+                  setBusy(false);
+                }
+              }}>Bulk Approve Pending</button>
+              <button className="btn-secondary text-xs px-3 py-2" onClick={() => { setInviteOpen(true); setInvite(i => ({ ...i, eventId: bulkEventId || i.eventId })); }}>Mandatory Invite</button>
+            </div>
           </div>
         </div>
 
@@ -75,6 +101,54 @@ const Reservations: React.FC = () => {
             <button className="btn-secondary text-xs px-3 py-2 disabled:opacity-30" disabled={page === 1} onClick={() => setPage(Math.max(1, page - 1))}>Prev</button>
             <div className="text-gray-300 text-xs flex items-center">Page {page} / {totalPages}</div>
             <button className="btn-secondary text-xs px-3 py-2 disabled:opacity-30" disabled={page === totalPages} onClick={() => setPage(Math.min(totalPages, page + 1))}>Next</button>
+          </div>
+        )}
+
+        {inviteOpen && (
+          <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+            <div className="card-luxury p-6 w-full max-w-2xl relative">
+              <button className="absolute top-2 right-2 text-gray-400 hover:text-white" onClick={() => setInviteOpen(false)}>✕</button>
+              <h3 className="heading-tertiary mb-4">Mandatory Event Invite</h3>
+              <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
+                <div>
+                  <label className="block text-xs mb-1 text-gray-400">Event ID</label>
+                  <input className="input-luxury w-full" value={invite.eventId} onChange={e => setInvite(i => ({ ...i, eventId: e.target.value }))} placeholder="Event ID" />
+                </div>
+                <div>
+                  <label className="block text-xs mb-1 text-gray-400">Limit</label>
+                  <input type="number" min={1} max={2000} className="input-luxury w-full" value={invite.limit} onChange={e => setInvite(i => ({ ...i, limit: Math.max(1, Math.min(2000, Number(e.target.value))) }))} />
+                  <p className="text-[10px] text-gray-500 mt-1">If emails are empty, first N active students will be invited.</p>
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-xs mb-1 text-gray-400">Emails (comma or newline separated)</label>
+                  <textarea className="input-luxury w-full h-32" value={invite.emails} onChange={e => setInvite(i => ({ ...i, emails: e.target.value }))} placeholder="jane@upat.edu, john@upat.edu\n..." />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-xs mb-1 text-gray-400">Message (optional)</label>
+                  <textarea className="input-luxury w-full h-24" value={invite.message} onChange={e => setInvite(i => ({ ...i, message: e.target.value }))} placeholder={`You are required to attend ...`} />
+                </div>
+                <div className="md:col-span-2 flex items-center gap-2">
+                  <input id="sendTickets" type="checkbox" checked={invite.sendTickets} onChange={e => setInvite(i => ({ ...i, sendTickets: e.target.checked }))} />
+                  <label htmlFor="sendTickets" className="text-sm text-gray-300">Also issue tickets automatically</label>
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 pt-6">
+                <button className="btn-secondary px-4 py-2" onClick={() => setInviteOpen(false)}>Cancel</button>
+                <button className="btn-primary px-6 py-2 disabled:opacity-40" disabled={!invite.eventId || busy} onClick={async () => {
+                  try {
+                    setBusy(true);
+                    const emails = invite.emails.split(/[\n,]/).map(s => s.trim()).filter(Boolean);
+                    const r = await adminMandatoryInvite(invite.eventId, { emails, message: invite.message, sendTickets: invite.sendTickets, limit: invite.limit });
+                    showToast(r.message || 'Invites sent','success');
+                    setInviteOpen(false);
+                  } catch (e: any) {
+                    showToast(e.message || 'Invite failed','error');
+                  } finally {
+                    setBusy(false);
+                  }
+                }}>Send</button>
+              </div>
+            </div>
           </div>
         )}
       </div>

@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node app.js",
     "dev": "nodemon app.js",
+  "email:test": "node scripts/test-email.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -14,6 +15,7 @@
   "type": "commonjs",
   "dependencies": {
     "@tailwindcss/postcss": "^4.1.11",
+  "google-auth-library": "^9.14.2",
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
     "dotenv": "^17.2.1",

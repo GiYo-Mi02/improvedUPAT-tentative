@@ -2,6 +2,8 @@ const { validationResult } = require("express-validator");
 const jwt = require("jsonwebtoken");
 const { User } = require("../models");
 const { success, error } = require("../utils/apiResponse");
+const crypto = require("crypto");
+const { OAuth2Client } = require("google-auth-library");
 
 const generateToken = (userId) =>
   jwt.sign({ id: userId }, process.env.JWT_SECRET || "fallback_secret", {
@@ -50,6 +52,65 @@ exports.register = async (req, res, next) => {
       },
       "User registered successfully",
       201
+    );
+  } catch (err) {
+    return next(err);
+  }
+};
+
+// Google Sign-In using ID token from Google Identity Services
+exports.googleLogin = async (req, res, next) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty())
+      return error(res, "Validation failed", 400, errors.array());
+
+    const { idToken } = req.body;
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    if (!clientId) return error(res, "Google client ID not configured", 500);
+
+    const client = new OAuth2Client(clientId);
+    const ticket = await client.verifyIdToken({ idToken, audience: clientId });
+    const payload = ticket.getPayload();
+
+    const email = payload?.email;
+    const name = payload?.name || email?.split("@")[0] || "Google User";
+    const emailVerified = payload?.email_verified;
+
+    if (!email || emailVerified === false) {
+      return error(res, "Google account email not verified", 400);
+    }
+
+    // Find or create user by email
+    let user = await User.findOne({ where: { email } });
+    if (!user) {
+      const randomPassword = crypto.randomBytes(24).toString("hex");
+      user = await User.create({
+        name,
+        email,
+        password: randomPassword, // hashed by model hook
+        role: "user",
+      });
+    }
+
+    if (!user.isActive) return error(res, "Account is deactivated", 400);
+
+    await user.update({ lastLogin: new Date() });
+    const token = generateToken(user.id);
+
+    return success(
+      res,
+      {
+        token,
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          studentId: user.studentId,
+        },
+      },
+      "Login successful"
     );
   } catch (err) {
     return next(err);

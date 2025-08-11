@@ -429,6 +429,33 @@ router.post("/:id/resend-email", auth, async (req, res) => {
       return res.status(404).json({ message: "Reservation not found" });
     }
 
+    // Ensure QR code exists; generate if missing
+    if (!reservation.qrCode) {
+      try {
+        const qrData = {
+          reservationId: reservation.id,
+          reservationCode: reservation.reservationCode,
+          eventId: reservation.event.id,
+          seatInfo: `${reservation.seat.section.toUpperCase()}-${
+            reservation.seat.row
+          }${reservation.seat.number}`,
+          userName: req.user.name,
+          eventTitle: reservation.event.title,
+        };
+        const QRCode = require("qrcode");
+        const qrCodeDataURL = await QRCode.toDataURL(JSON.stringify(qrData), {
+          errorCorrectionLevel: "M",
+          type: "image/png",
+          quality: 0.92,
+          margin: 1,
+          color: { dark: "#000000", light: "#FFFFFF" },
+        });
+        await reservation.update({ qrCode: qrCodeDataURL });
+      } catch (e) {
+        console.warn("Failed to regenerate QR code for resend:", e.message);
+      }
+    }
+
     await sendTicketEmail({
       to: req.user.email,
       userName: req.user.name,

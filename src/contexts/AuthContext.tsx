@@ -76,6 +76,7 @@ const authReducer = (state: AuthState, action: AuthAction): AuthState => {
 interface AuthContextType {
   state: AuthState;
   login: (email: string, password: string) => Promise<void>;
+  googleLogin: (idToken: string) => Promise<void>;
   register: (data: RegisterData) => Promise<void>;
   logout: () => void;
   updateProfile: (data: Partial<User>) => Promise<void>;
@@ -165,6 +166,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const googleLogin = async (idToken: string) => {
+    try {
+      dispatch({ type: 'AUTH_START' });
+      const response = await axios.post(`${API_BASE_URL}/auth/google`, { idToken });
+      dispatch({
+        type: 'AUTH_SUCCESS',
+        payload: {
+          user: response.data.user,
+          token: response.data.token,
+        },
+      });
+    } catch (error: any) {
+      dispatch({ type: 'AUTH_FAILURE' });
+      throw new Error(error.response?.data?.message || 'Google login failed');
+    }
+  };
+
   const logout = () => {
     dispatch({ type: 'LOGOUT' });
   };
@@ -184,6 +202,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const value: AuthContextType = {
     state,
     login,
+  googleLogin,
     register,
     logout,
     updateProfile,

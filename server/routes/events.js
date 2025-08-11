@@ -10,7 +10,8 @@ function buildPosterUrl(posterPath) {
   if (!posterPath) return null;
   if (/^https?:/i.test(posterPath)) return posterPath; // already absolute
   const base =
-    process.env.SERVER_URL || `http://localhost:${process.env.PORT || 3001}`;
+    process.env.SERVER_URL?.replace(/\/$/, "") ||
+    `http://localhost:${process.env.PORT || 3001}`;
   const normalized = posterPath.startsWith("/") ? posterPath : `/${posterPath}`;
   return `${base}${normalized}`;
 }

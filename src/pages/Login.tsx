@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
@@ -14,12 +14,13 @@ const Login: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  const { login } = useAuth();
+  const { login, googleLogin } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
 
   const from = location.state?.from?.pathname || '/';
+  const googleBtnRef = useRef<HTMLDivElement | null>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData(prev => ({
@@ -42,6 +43,45 @@ const Login: React.FC = () => {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    if (!clientId) return;
+    if (!(window as any).google) return; // script not yet loaded
+
+    const google = (window as any).google;
+    try {
+      google.accounts.id.initialize({
+        client_id: clientId,
+        callback: async (response: any) => {
+          const idToken = response.credential;
+          if (!idToken) return;
+          setIsLoading(true);
+          try {
+            await googleLogin(idToken);
+            showToast('Signed in with Google', 'success');
+            navigate(from, { replace: true });
+          } catch (err: any) {
+            showToast(err.message || 'Google login failed', 'error');
+          } finally {
+            setIsLoading(false);
+          }
+        },
+        ux_mode: 'popup',
+        auto_select: false,
+      });
+      if (googleBtnRef.current) {
+        google.accounts.id.renderButton(googleBtnRef.current, {
+          theme: 'outline',
+          size: 'large',
+          shape: 'pill',
+          text: 'continue_with',
+        });
+      }
+    } catch (e) {
+      // ignore init errors if script not ready
+    }
+  }, [from, googleLogin, navigate, showToast]);
 
   return (
     <div className="relative min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
@@ -146,6 +186,17 @@ const Login: React.FC = () => {
                   </>
                 )}
               </button>
+            </div>
+
+            <div className="relative py-2">
+              <div className="flex items-center gap-2 my-2">
+                <div className="h-px bg-white/10 flex-1" />
+                <span className="text-xs text-gray-400">or</span>
+                <div className="h-px bg-white/10 flex-1" />
+              </div>
+              <div className="flex justify-center">
+                <div ref={googleBtnRef} />
+              </div>
             </div>
 
             <Reveal className="text-center" variant="up" delay={60}>

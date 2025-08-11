@@ -27,3 +27,16 @@ export async function adminGetReservations(params: any = {}) { try { const r = a
 export async function adminApproveReservation(id: string) { try { const r = await http.put(`/admin/reservations/${id}/approve`); return r.data; } catch (e) { throw new Error(extractErrorMessage(e)); } }
 export async function adminRejectReservation(id: string) { try { const r = await http.put(`/admin/reservations/${id}/reject`); return r.data; } catch (e) { throw new Error(extractErrorMessage(e)); } }
 export async function adminGetEvent(id: string) { try { const r = await http.get(`/events/${id}`); return r.data; } catch (e) { throw new Error(extractErrorMessage(e)); } }
+export async function adminBulkApproveReservations(eventId: string, limit: number = 1000) {
+	try {
+		const r = await http.put('/admin/reservations/bulk-approve', { eventId, limit });
+		return r.data;
+	} catch (e) { throw new Error(extractErrorMessage(e)); }
+}
+
+export async function adminMandatoryInvite(eventId: string, payload: { emails?: string[]; message?: string; sendTickets?: boolean; limit?: number }) {
+	try {
+		const r = await http.post(`/admin/events/${eventId}/mandatory-invite`, payload);
+		return r.data;
+	} catch (e) { throw new Error(extractErrorMessage(e)); }
+}

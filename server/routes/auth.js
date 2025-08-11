@@ -42,6 +42,13 @@ const loginValidation = [
   body("password").notEmpty().withMessage("Password is required"),
 ];
 
+const googleValidation = [
+  body("idToken")
+    .isString()
+    .notEmpty()
+    .withMessage("Google ID token is required"),
+];
+
 router.post(
   "/register",
   authLimiter,
@@ -53,6 +60,12 @@ router.post(
   authLimiter,
   loginValidation,
   asyncHandler(authController.login)
+);
+router.post(
+  "/google",
+  authLimiter,
+  googleValidation,
+  asyncHandler(authController.googleLogin)
 );
 router.get("/me", auth, asyncHandler(authController.getMe));
 
