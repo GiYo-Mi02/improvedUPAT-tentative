@@ -27,6 +27,7 @@ import AdminEvents from './pages/admin/Events';
 import AdminReservations from './pages/admin/Reservations';
 import AdminUsers from './pages/admin/Users';
 import AdminGallery from './pages/admin/Gallery';
+import AdminAnnouncements from './pages/admin/Announcements';
 
 import BadRequest from './pages/errors/BadRequest';
 import Forbidden from './pages/errors/Forbidden';
@@ -94,6 +95,11 @@ function App() {
                 <Route path="/admin/gallery" element={
                   <AdminRoute>
                     <AdminGallery />
+                  </AdminRoute>
+                } />
+                <Route path="/admin/announcements" element={
+                  <AdminRoute>
+                    <AdminAnnouncements />
                   </AdminRoute>
                 } />
                 {/* Error Routes */}

@@ -4,6 +4,7 @@ const Seat = require("./Seat");
 const Reservation = require("./Reservation");
 const Payment = require("./Payment");
 const GalleryItem = require("./GalleryItem");
+const Announcement = require("./Announcement");
 
 // User associations
 User.hasMany(Reservation, {
@@ -61,4 +62,5 @@ module.exports = {
   Reservation,
   Payment,
   GalleryItem,
+  Announcement,
 };

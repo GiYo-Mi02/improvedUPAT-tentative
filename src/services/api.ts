@@ -70,3 +70,12 @@ export const galleryAPI = {
 };
 
 export default api;
+
+// Announcements API
+export const announcementsAPI = {
+  listPublic: () => api.get('/announcements'),
+  adminList: () => api.get('/announcements/admin'),
+  create: (data: any) => api.post('/announcements/admin', data),
+  update: (id: string, data: any) => api.put(`/announcements/admin/${id}`, data),
+  remove: (id: string) => api.delete(`/announcements/admin/${id}`),
+};

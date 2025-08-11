@@ -47,3 +47,15 @@ export async function adminGetBulkJob(jobId: string) {
 		return r.data as { id: string; status: string; total: number; notified: number; ticketed: number; failed: number; errors: any[] };
 	} catch (e) { throw new Error(extractErrorMessage(e)); }
 }
+
+export async function adminGetEventAnalytics(params: { range?: 'all' | 'upcoming' | 'past'; limit?: number } = {}) {
+	try {
+		const r = await http.get('/admin/events/analytics', { params });
+		return r.data as { analytics: Array<any> };
+	} catch (e) { throw new Error(extractErrorMessage(e)); }
+}
+
+export async function adminGetEventTrends(params: { rangeDays?: number; range?: 'all' | 'upcoming' | 'past'; limit?: number; eventIds?: string }) {
+	try { const r = await http.get('/admin/events/trends', { params }); return r.data as { rangeDays: number; labels: string[]; trends: any[] }; }
+	catch (e) { throw new Error(extractErrorMessage(e)); }
+}

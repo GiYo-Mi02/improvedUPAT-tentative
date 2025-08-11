@@ -85,7 +85,239 @@ async function processWithConcurrency(items, handler, concurrency = 5) {
   });
 }
 
+// ========== DASHBOARD ==========
+// GET /api/admin/dashboard
+router.get("/dashboard", authorize("admin"), async (req, res) => {
+  try {
+    const now = new Date();
+
+    // Aggregate counts (flat shape expected by frontend)
+    const [totalUsers, totalEvents, activeEvents] = await Promise.all([
+      User.count(),
+      Event.count(),
+      Event.count({
+        where: { status: "published", eventDate: { [Op.gte]: now } },
+      }),
+    ]);
+
+    const recentReservations = await Reservation.findAll({
+      order: [["createdAt", "DESC"]],
+      limit: 5,
+      include: [
+        { model: User, as: "user", attributes: ["id", "name", "email"] },
+        {
+          model: Event,
+          as: "event",
+          attributes: ["id", "title", "eventDate", "venue"],
+        },
+        {
+          model: Seat,
+          as: "seat",
+          attributes: ["section", "row", "number", "isVip"],
+        },
+      ],
+    });
+
+    const upcomingEvents = await Event.findAll({
+      where: { eventDate: { [Op.gte]: now } },
+      order: [["eventDate", "ASC"]],
+      limit: 5,
+    });
+
+    return res.json({
+      statistics: { totalEvents, activeEvents, totalUsers },
+      recentReservations,
+      upcomingEvents,
+    });
+  } catch (error) {
+    console.error("Dashboard error:", error);
+    return res
+      .status(500)
+      .json({ message: "Server error while loading dashboard" });
+  }
+});
+
 // ========== EVENTS ==========
+
+// Per-event analytics
+// GET /api/admin/events/analytics?range=all|upcoming|past&limit=50
+router.get("/events/analytics", authorize("admin"), async (req, res) => {
+  try {
+    const now = new Date();
+    const range = (req.query.range || "all").toString();
+    const limit = Math.min(parseInt(req.query.limit) || 50, 200);
+
+    const where = {};
+    if (range === "upcoming") where.eventDate = { [Op.gte]: now };
+    if (range === "past") where.eventDate = { [Op.lt]: now };
+
+    const events = await Event.findAll({
+      where,
+      order: [["eventDate", "ASC"]],
+      limit,
+    });
+
+    const analytics = await Promise.all(
+      events.map(async (ev) => {
+        const [
+          totalRes,
+          pendingRes,
+          confirmedRes,
+          cancelledRes,
+          soldSeats,
+          availableSeats,
+        ] = await Promise.all([
+          Reservation.count({ where: { eventId: ev.id } }),
+          Reservation.count({ where: { eventId: ev.id, status: "pending" } }),
+          Reservation.count({ where: { eventId: ev.id, status: "confirmed" } }),
+          Reservation.count({ where: { eventId: ev.id, status: "cancelled" } }),
+          Seat.count({ where: { eventId: ev.id, status: "sold" } }),
+          Seat.count({
+            where: { eventId: ev.id, status: "available", isReserved: false },
+          }),
+        ]);
+
+        const totalSeats = ev.maxSeats || 0;
+        const occupancy =
+          totalSeats > 0 ? Math.round((soldSeats / totalSeats) * 100) : 0;
+        const confirmationRate =
+          totalRes > 0 ? Math.round((confirmedRes / totalRes) * 100) : 0;
+        const daysUntil = Math.ceil(
+          (new Date(ev.eventDate) - now) / (1000 * 60 * 60 * 24)
+        );
+
+        return {
+          id: ev.id,
+          title: ev.title,
+          eventDate: ev.eventDate,
+          venue: ev.venue,
+          status: ev.status,
+          totalSeats,
+          soldSeats,
+          availableSeats,
+          reservations: {
+            total: totalRes,
+            pending: pendingRes,
+            confirmed: confirmedRes,
+            cancelled: cancelledRes,
+          },
+          occupancy, // % of seats sold
+          confirmationRate, // % of reservations confirmed
+          daysUntil,
+        };
+      })
+    );
+
+    return res.json({ analytics });
+  } catch (error) {
+    console.error("Events analytics error:", error);
+    return res
+      .status(500)
+      .json({ message: "Server error while fetching analytics" });
+  }
+});
+
+// Per-event confirmation trends (daily counts)
+// GET /api/admin/events/trends?rangeDays=14&range=upcoming|all|past&limit=10&eventIds=1,2
+router.get("/events/trends", authorize("admin"), async (req, res) => {
+  try {
+    const rangeDays = Math.min(
+      Math.max(parseInt(req.query.rangeDays) || 14, 3),
+      60
+    );
+    const range = (req.query.range || "upcoming").toString();
+    const limit = Math.min(parseInt(req.query.limit) || 10, 50);
+    const idsParam = (req.query.eventIds || "").toString();
+    const now = new Date();
+    const start = new Date(now.getTime() - rangeDays * 24 * 60 * 60 * 1000);
+
+    let events;
+    if (idsParam) {
+      const ids = idsParam
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      events = await Event.findAll({
+        where: { id: { [Op.in]: ids } },
+        order: [["eventDate", "ASC"]],
+      });
+    } else {
+      const where = {};
+      if (range === "upcoming") where.eventDate = { [Op.gte]: now };
+      if (range === "past") where.eventDate = { [Op.lt]: now };
+      events = await Event.findAll({
+        where,
+        order: [["eventDate", "ASC"]],
+        limit,
+      });
+    }
+
+    // Build continuous day labels
+    const labels = [];
+    for (let i = 0; i < rangeDays; i++) {
+      const d = new Date(start.getTime() + i * 24 * 60 * 60 * 1000);
+      labels.push(d.toISOString().slice(0, 10));
+    }
+
+    // Helper to map rows to series aligned with labels
+    const toSeries = (rows) => {
+      const map = new Map();
+      for (const r of rows) {
+        const key = String(r.d);
+        map.set(key, Number(r.count) || 0);
+      }
+      return labels.map((day) => map.get(day) || 0);
+    };
+
+    const trends = [];
+    for (const ev of events) {
+      // Aggregate confirmed reservations per day
+      const rows = await Reservation.findAll({
+        where: {
+          eventId: ev.id,
+          status: "confirmed",
+          createdAt: { [Op.gte]: start },
+        },
+        attributes: [
+          [sequelize.literal("DATE(Reservation.created_at)"), "d"],
+          [sequelize.literal("COUNT(*)"), "count"],
+        ],
+        group: [sequelize.literal("DATE(Reservation.created_at)")],
+        order: [[sequelize.literal("d"), "ASC"]],
+        raw: true,
+      });
+
+      const series = toSeries(rows);
+      const last7 = series.slice(-7).reduce((a, b) => a + b, 0);
+      const prev7 = series.slice(-14, -7).reduce((a, b) => a + b, 0);
+      const changePct =
+        prev7 === 0
+          ? last7 > 0
+            ? 100
+            : 0
+          : Math.round(((last7 - prev7) / prev7) * 100);
+
+      trends.push({
+        id: ev.id,
+        title: ev.title,
+        eventDate: ev.eventDate,
+        venue: ev.venue,
+        labels,
+        series,
+        last7,
+        prev7,
+        changePct,
+      });
+    }
+
+    return res.json({ rangeDays, labels, trends });
+  } catch (error) {
+    console.error("Events trends error:", error);
+    return res
+      .status(500)
+      .json({ message: "Server error while fetching trends" });
+  }
+});
 
 // Create event
 router.post(

@@ -5,6 +5,8 @@ const EventsCalendarLazy = lazy(() => import('../components/events/EventsCalenda
 import Typewriter from '../components/ui/Typewriter';
 import Reveal from '../components/ui/Reveal';
 import { eventsAPI, galleryAPI } from '../services/api';
+import { usePublicAnnouncements } from '../hooks/useAnnouncements';
+import { Megaphone } from 'lucide-react';
 
 interface Event {
   id: string;
@@ -46,6 +48,7 @@ const Home: React.FC = () => {
   const trackRef = useRef<HTMLDivElement | null>(null);
   const pausedRef = useRef<boolean>(false);
   const calendarRef = useRef<HTMLDivElement | null>(null);
+  const { items: announcements } = usePublicAnnouncements();
 
   useEffect(() => {
     pausedRef.current = paused;
@@ -283,7 +286,7 @@ const Home: React.FC = () => {
         </div>
       </section>
 
-      {/* Stats Section */}
+  {/* Stats Section */}
       <section className="py-16 bg-luxury-deep/50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -311,6 +314,40 @@ const Home: React.FC = () => {
           </div>
         </div>
       </section>
+
+       {/* Announcement Section */}
+      {announcements && announcements.length > 0 && (
+        <section className="py-10 bg-gradient-to-br from-black/60 to-luxury-deep/60">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <Reveal className="mb-4" variant="up">
+              <div className="flex items-center gap-2 text-luxury-gold">
+                <Megaphone className="h-5 w-5" />
+                <h2 className="text-xl font-heading">Announcements</h2>
+              </div>
+            </Reveal>
+            <div className="space-y-4">
+              {announcements.slice(0, 6).map((a) => (
+                <div key={a.id} className="card-luxury p-4">
+                  <div className="text-white font-medium mb-2">{a.title}</div>
+                  <div className="flex flex-col md:flex-row gap-4 items-start">
+                    {a.imagePath && (
+                      <img
+                      src={/^https?:/i.test(a.imagePath) ? (a.imagePath as string) : `${SERVER_BASE}${(a.imagePath as string).startsWith('/') ? a.imagePath : '/' + a.imagePath}`}
+                      alt={a.title}
+                      className="w-full md:w-40 md:h-40 object-cover rounded-md border border-white/10"
+                      />
+                    )}
+                    <div className="text-gray-300 text-sm whitespace-pre-wrap flex-1">{a.message}</div>
+                  </div>
+                  {a.endsAt && (
+                    <div className="text-xs text-gray-400 mt-2">Until {new Date(a.endsAt).toLocaleString()}</div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Calendar of Events */}
   <section className="py-20" ref={calendarRef}>

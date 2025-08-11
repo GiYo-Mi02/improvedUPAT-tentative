@@ -6,6 +6,7 @@ const rateLimit = require("express-rate-limit");
 require("dotenv").config();
 const path = require("path");
 const fs = require("fs");
+const { DataTypes } = require("sequelize");
 
 const authRoutes = require("./routes/auth");
 const eventRoutes = require("./routes/events");
@@ -13,6 +14,7 @@ const seatRoutes = require("./routes/seats");
 const reservationRoutes = require("./routes/reservations");
 const adminRoutes = require("./routes/admin");
 const galleryRoutes = require("./routes/gallery");
+const announcementRoutes = require("./routes/announcements");
 
 const { sequelize } = require("./config/database");
 const { success, error } = require("./utils/apiResponse");
@@ -110,12 +112,31 @@ app.use(
   express.static(galleryDir)
 );
 
+// Ensure announcements directory exists and serve with same headers
+const announcementsDir = path.join(__dirname, "uploads", "announcements");
+fs.mkdirSync(announcementsDir, { recursive: true });
+app.use(
+  "/uploads/announcements",
+  (req, res, next) => {
+    const origin = req.headers.origin;
+    if (origin && allowedOrigins.includes(origin)) {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+      res.setHeader("Vary", "Origin");
+    }
+    res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+    res.setHeader("Cache-Control", "public, max-age=604800, immutable");
+    next();
+  },
+  express.static(announcementsDir)
+);
+
 // API routes
 app.use("/api/auth", authRoutes);
 app.use("/api/events", eventRoutes);
 app.use("/api/seats", seatRoutes);
 app.use("/api/reservations", reservationRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/announcements", announcementRoutes);
 app.use("/api/gallery", galleryRoutes);
 
 // Health check endpoint
@@ -173,6 +194,23 @@ async function startServer() {
 
     // Sync database (create tables if they don't exist)
     await sequelize.sync(); // removed force:true after development
+    // Ensure new columns exist (lightweight migration)
+    try {
+      const qi = sequelize.getQueryInterface();
+      const desc = await qi.describeTable("announcements");
+      if (!desc["image_path"]) {
+        await qi.addColumn("announcements", "image_path", {
+          type: DataTypes.STRING,
+          allowNull: true,
+        });
+        console.log("✅ Added announcements.image_path column");
+      }
+    } catch (mErr) {
+      console.warn(
+        "⚠️ Migration check for announcements.image_path failed:",
+        mErr.message
+      );
+    }
     console.log("✅ Database synchronized successfully.");
 
     app.listen(PORT, () => {

@@ -10,7 +10,8 @@ import {
   Settings, 
   LogOut,
   Crown,
-  Theater
+  Theater,
+  Megaphone
 } from 'lucide-react';
 
 const Navbar: React.FC = () => {
@@ -43,6 +44,7 @@ const Navbar: React.FC = () => {
     { to: '/admin/users', label: 'Users', icon: User },
     { to: '/admin/reservations', label: 'Reservations', icon: Ticket },
   { to: '/admin/gallery', label: 'Gallery', icon: Theater },
+  { to: '/admin/announcements', label: 'Announcements', icon: Megaphone },
   ];
 
   return (
