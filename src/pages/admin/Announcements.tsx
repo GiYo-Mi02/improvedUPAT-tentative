@@ -129,7 +129,11 @@ const AdminAnnouncements: React.FC = () => {
                   </div>
                   <div className="flex gap-2">
                     <button className="btn-secondary inline-flex items-center gap-2" onClick={() => setEditingId(a.id)}><Edit3 className="w-4 h-4" /> Edit</button>
-                    <button className="btn-secondary inline-flex items-center gap-2" onClick={() => remove(a.id)}><Trash2 className="w-4 h-4" /> Delete</button>
+                    <button className="btn-secondary inline-flex items-center gap-2" onClick={() => {
+                      const ok = window.confirm(`Delete announcement "${a.title}"? This cannot be undone.`);
+                      if (!ok) return;
+                      remove(a.id);
+                    }}><Trash2 className="w-4 h-4" /> Delete</button>
                   </div>
                 </div>
               )}

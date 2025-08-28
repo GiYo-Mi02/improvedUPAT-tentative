@@ -38,8 +38,9 @@ export function useAdminReservations() {
   const setStatus = (status?: string) => setState(s => ({ ...s, page: 1, status }));
   const setEventId = (eventId?: string) => setState(s => ({ ...s, page: 1, eventId }));
   const approve = async (id: string) => {
-    await adminApproveReservation(id);
+    const res = await adminApproveReservation(id);
     await load();
+    return res;
   };
   const reject = async (id: string) => {
     await adminRejectReservation(id);

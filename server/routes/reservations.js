@@ -137,10 +137,12 @@ router.post(
       };
 
       const qrCodeDataURL = await QRCode.toDataURL(JSON.stringify(qrData), {
-        errorCorrectionLevel: "M",
+        errorCorrectionLevel: (
+          process.env.QR_CODE_ERROR_CORRECTION || "M"
+        ).toUpperCase(),
         type: "image/png",
-        quality: 0.92,
         margin: 1,
+        width: parseInt(process.env.QR_CODE_SIZE || "200", 10),
         color: {
           dark: "#000000",
           light: "#FFFFFF",
@@ -469,10 +471,12 @@ router.post("/:id/resend-email", auth, async (req, res) => {
         };
         const QRCode = require("qrcode");
         const qrCodeDataURL = await QRCode.toDataURL(JSON.stringify(qrData), {
-          errorCorrectionLevel: "M",
+          errorCorrectionLevel: (
+            process.env.QR_CODE_ERROR_CORRECTION || "M"
+          ).toUpperCase(),
           type: "image/png",
-          quality: 0.92,
           margin: 1,
+          width: parseInt(process.env.QR_CODE_SIZE || "200", 10),
           color: { dark: "#000000", light: "#FFFFFF" },
         });
         await reservation.update({ qrCode: qrCodeDataURL });

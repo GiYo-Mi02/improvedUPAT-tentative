@@ -9,6 +9,7 @@ const { sequelize } = require("../config/database");
 const {
   sendTicketEmail,
   sendNotificationEmail,
+  getEmailStatus,
 } = require("../utils/emailService");
 const { v4: uuidv4 } = require("uuid");
 
@@ -134,6 +135,43 @@ router.get("/dashboard", authorize("admin"), async (req, res) => {
     return res
       .status(500)
       .json({ message: "Server error while loading dashboard" });
+  }
+});
+
+// ========== EMAIL DIAGNOSTICS ==========
+// GET /api/admin/email/status
+router.get("/email/status", authorize("admin"), async (req, res) => {
+  try {
+    const info = await getEmailStatus();
+    return res.json({ ok: true, ...info });
+  } catch (e) {
+    return res
+      .status(500)
+      .json({ ok: false, message: e?.message || "Email status error" });
+  }
+});
+
+// POST /api/admin/email/test { to }
+router.post("/email/test", authorize("admin"), async (req, res) => {
+  const to = (req.body?.to || "").toString().trim();
+  if (!to) return res.status(400).json({ message: "to is required" });
+  try {
+    const info = await sendNotificationEmail({
+      to,
+      subject: "CCIS Email Test",
+      message: "This is a test email from CCIS Ticketing.",
+      userName: to.split("@")[0],
+    });
+    return res.json({
+      ok: true,
+      mode: info.mode || "unknown",
+      messageId: info.messageId || null,
+      previewUrl: info.previewUrl || null,
+    });
+  } catch (e) {
+    return res
+      .status(500)
+      .json({ ok: false, message: e?.message || "Failed to send test email" });
   }
 });
 
@@ -972,7 +1010,15 @@ router.put("/reservations/bulk-approve", async (req, res) => {
                   eventTitle: r.event.title,
                 };
                 const qrCodeDataURL = await QRCode.toDataURL(
-                  JSON.stringify(qrData)
+                  JSON.stringify(qrData),
+                  {
+                    errorCorrectionLevel: (
+                      process.env.QR_CODE_ERROR_CORRECTION || "M"
+                    ).toUpperCase(),
+                    type: "image/png",
+                    margin: 1,
+                    width: parseInt(process.env.QR_CODE_SIZE || "200", 10),
+                  }
                 );
                 await r.update({ qrCode: qrCodeDataURL });
               } catch (e) {
@@ -1058,9 +1104,46 @@ router.put("/reservations/:id/approve", async (req, res) => {
 
     await t.commit();
 
+    let emailSent = !!reservation.emailSent;
+    let emailError = null;
     if (!reservation.emailSent) {
       try {
-        await sendTicketEmail({
+        // Ensure QR exists before emailing
+        if (!reservation.qrCode) {
+          try {
+            const QRCode = require("qrcode");
+            const qrData = {
+              reservationId: reservation.id,
+              reservationCode: reservation.reservationCode,
+              eventId: reservation.event.id,
+              seatInfo: `${reservation.seat.section.toUpperCase()}-${
+                reservation.seat.row
+              }${reservation.seat.number}`,
+              userName: reservation.user.name,
+              eventTitle: reservation.event.title,
+            };
+            const qrCodeDataURL = await QRCode.toDataURL(
+              JSON.stringify(qrData),
+              {
+                errorCorrectionLevel: (
+                  process.env.QR_CODE_ERROR_CORRECTION || "M"
+                ).toUpperCase(),
+                type: "image/png",
+                margin: 1,
+                width: parseInt(process.env.QR_CODE_SIZE || "200", 10),
+              }
+            );
+            await reservation.update({ qrCode: qrCodeDataURL });
+          } catch (e) {
+            console.warn(
+              "[Approve] QR regeneration failed for",
+              reservation.id,
+              e.message
+            );
+          }
+        }
+
+        const info = await sendTicketEmail({
           to: reservation.user.email,
           userName: reservation.user.name,
           reservation,
@@ -1069,12 +1152,19 @@ router.put("/reservations/:id/approve", async (req, res) => {
           qrCode: reservation.qrCode,
         });
         await reservation.update({ emailSent: true });
+        emailSent = true;
       } catch (emailErr) {
         console.error("Approve reservation email error:", emailErr.message);
+        emailError = emailErr?.message || String(emailErr);
       }
     }
 
-    return res.json({ message: "Reservation approved", reservation });
+    return res.json({
+      message: "Reservation approved",
+      reservation: { id: reservation.id, status: reservation.status },
+      emailSent,
+      ...(emailError ? { emailError } : {}),
+    });
   } catch (error) {
     await t.rollback();
     console.error("Approve reservation error:", error);
@@ -1301,7 +1391,18 @@ router.post(
                         eventTitle: event.title,
                       };
                       const qrCodeDataURL = await QRCode.toDataURL(
-                        JSON.stringify(qrData)
+                        JSON.stringify(qrData),
+                        {
+                          errorCorrectionLevel: (
+                            process.env.QR_CODE_ERROR_CORRECTION || "M"
+                          ).toUpperCase(),
+                          type: "image/png",
+                          margin: 1,
+                          width: parseInt(
+                            process.env.QR_CODE_SIZE || "200",
+                            10
+                          ),
+                        }
                       );
                       await reservation.update({ qrCode: qrCodeDataURL });
                     }
@@ -1382,6 +1483,77 @@ router.get("/bulk-jobs/:id", authorize("admin"), async (req, res) => {
   if (!job) return res.status(404).json({ message: "Job not found" });
   return res.json(job);
 });
+
+// Admin resend ticket email by reservation id
+router.post(
+  "/reservations/:id/resend-email",
+  authorize("admin"),
+  async (req, res) => {
+    try {
+      const reservation = await Reservation.findByPk(req.params.id, {
+        include: [
+          { model: Event, as: "event" },
+          { model: Seat, as: "seat" },
+          { model: User, as: "user", attributes: ["name", "email"] },
+        ],
+      });
+      if (!reservation)
+        return res.status(404).json({ message: "Reservation not found" });
+
+      if (!reservation.qrCode) {
+        try {
+          const QRCode = require("qrcode");
+          const qrData = {
+            reservationId: reservation.id,
+            reservationCode: reservation.reservationCode,
+            eventId: reservation.event.id,
+            seatInfo: `${reservation.seat.section.toUpperCase()}-${
+              reservation.seat.row
+            }${reservation.seat.number}`,
+            userName: reservation.user.name,
+            eventTitle: reservation.event.title,
+          };
+          const qrCodeDataURL = await QRCode.toDataURL(JSON.stringify(qrData), {
+            errorCorrectionLevel: (
+              process.env.QR_CODE_ERROR_CORRECTION || "M"
+            ).toUpperCase(),
+            type: "image/png",
+            margin: 1,
+            width: parseInt(process.env.QR_CODE_SIZE || "200", 10),
+          });
+          await reservation.update({ qrCode: qrCodeDataURL });
+        } catch (e) {
+          console.warn(
+            "[Admin Resend] QR regeneration failed for",
+            reservation.id,
+            e.message
+          );
+        }
+      }
+
+      const info = await sendTicketEmail({
+        to: reservation.user.email,
+        userName: reservation.user.name,
+        reservation,
+        event: reservation.event,
+        seat: reservation.seat,
+        qrCode: reservation.qrCode,
+      });
+      await reservation.update({ emailSent: true });
+      return res.json({
+        ok: true,
+        message: "Ticket email resent",
+        mode: info.mode || "unknown",
+        previewUrl: info.previewUrl || null,
+      });
+    } catch (e) {
+      console.error("Admin resend email error:", e);
+      return res
+        .status(500)
+        .json({ ok: false, message: e?.message || "Resend failed" });
+    }
+  }
+);
 
 // ========== SEAT GENERATION ==========
 
@@ -1983,7 +2155,15 @@ router.put("/reservations/bulk-approve", async (req, res) => {
                   eventTitle: r.event.title,
                 };
                 const qrCodeDataURL = await QRCode.toDataURL(
-                  JSON.stringify(qrData)
+                  JSON.stringify(qrData),
+                  {
+                    errorCorrectionLevel: (
+                      process.env.QR_CODE_ERROR_CORRECTION || "M"
+                    ).toUpperCase(),
+                    type: "image/png",
+                    margin: 1,
+                    width: parseInt(process.env.QR_CODE_SIZE || "200", 10),
+                  }
                 );
                 await r.update({ qrCode: qrCodeDataURL });
               } catch (e) {
@@ -2151,7 +2331,15 @@ router.post(
                     eventTitle: event.title,
                   };
                   const qrCodeDataURL = await QRCode.toDataURL(
-                    JSON.stringify(qrData)
+                    JSON.stringify(qrData),
+                    {
+                      errorCorrectionLevel: (
+                        process.env.QR_CODE_ERROR_CORRECTION || "M"
+                      ).toUpperCase(),
+                      type: "image/png",
+                      margin: 1,
+                      width: parseInt(process.env.QR_CODE_SIZE || "200", 10),
+                    }
                   );
                   await reservation.update({ qrCode: qrCodeDataURL });
                 } catch (e) {

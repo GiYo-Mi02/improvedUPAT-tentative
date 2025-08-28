@@ -26,6 +26,7 @@ export async function adminUpdateUserStatus(id: string, isActive: boolean) { try
 export async function adminGetReservations(params: any = {}) { try { const r = await http.get('/admin/reservations', { params }); return r.data; } catch (e) { throw new Error(extractErrorMessage(e)); } }
 export async function adminApproveReservation(id: string) { try { const r = await http.put(`/admin/reservations/${id}/approve`); return r.data; } catch (e) { throw new Error(extractErrorMessage(e)); } }
 export async function adminRejectReservation(id: string) { try { const r = await http.put(`/admin/reservations/${id}/reject`); return r.data; } catch (e) { throw new Error(extractErrorMessage(e)); } }
+export async function adminResendReservationEmail(id: string) { try { const r = await http.post(`/admin/reservations/${id}/resend-email`); return r.data; } catch (e) { throw new Error(extractErrorMessage(e)); } }
 export async function adminGetEvent(id: string) { try { const r = await http.get(`/events/${id}`); return r.data; } catch (e) { throw new Error(extractErrorMessage(e)); } }
 export async function adminBulkApproveReservations(eventId: string, limit: number = 1000) {
 	try {

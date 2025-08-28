@@ -150,7 +150,11 @@ const AdminEvents: React.FC = () => {
                             <Megaphone className="h-4 w-4" /> Publish
                           </button>
                         )}
-                        <button className="btn-secondary text-xs px-3 py-1 inline-flex items-center gap-1" disabled={deletingId === ev.id} onClick={() => remove(ev.id)} title="Delete">
+                        <button className="btn-secondary text-xs px-3 py-1 inline-flex items-center gap-1" disabled={deletingId === ev.id} onClick={() => {
+                          const ok = window.confirm(`Delete event "${ev.title}"? This cannot be undone.`);
+                          if (!ok) return;
+                          remove(ev.id).then(() => showToast('Event deleted','success')).catch(() => showToast('Failed to delete event','error'));
+                        }} title="Delete">
                           <Trash2 className="h-4 w-4" /> {deletingId === ev.id ? '...' : 'Delete'}
                         </button>
                       </div>

@@ -75,6 +75,14 @@ const createTransporter = async () => {
   }
 };
 
+const resolveMode = (transporter) => {
+  if (!transporter) return "error";
+  if (transporter.__isEthereal) return "ethereal";
+  if (transporter.__isNoop) return "disabled";
+  if (transporter.__isError) return "error";
+  return "real";
+};
+
 // Polished, brand-aligned ticket email
 const sendTicketEmail = async ({
   to,
@@ -97,148 +105,497 @@ const sendTicketEmail = async ({
       minute: "2-digit",
     });
 
-    // Prepare inline QR via CID; fall back to data URL if provided
+    // Prepare inline QR via CID (preferred for email clients)
     let attachments = [];
     let qrImgTag = "";
-    if (qrCode && typeof qrCode === "string") {
-      if (qrCode.startsWith("data:image")) {
-        // keep data URL directly for broad client support
-        qrImgTag = `<img src="${qrCode}" alt="QR Code" />`;
-      } else if (qrCode.includes("base64,")) {
-        // legacy support; convert to CID
-        const b64 = qrCode.split("base64,")[1];
+    const provided =
+      typeof qrCode === "string" && qrCode.trim().length > 0
+        ? qrCode.trim()
+        : reservation?.qrCode || "";
+
+    if (provided && typeof provided === "string") {
+      // If a data URL, convert to CID attachment for better compatibility
+      if (provided.startsWith("data:image")) {
+        const match = provided.match(
+          /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/
+        );
+        if (match) {
+          const mime = match[1] || "image/png";
+          const b64 = match[2];
+          const ext = mime.split("/")[1] || "png";
+          const cid = `qrcode-${reservation.reservationCode}@ccis`;
+          attachments.push({
+            filename: `ticket-${reservation.reservationCode}.${ext}`,
+            content: b64,
+            encoding: "base64",
+            cid,
+            contentType: mime,
+          });
+          qrImgTag = `<img src="cid:${cid}" alt="QR Code" />`;
+        } else {
+          // Fallback to direct data URL if parsing fails
+          qrImgTag = `<img src="${provided}" alt="QR Code" />`;
+        }
+      } else if (/^https?:\/\//i.test(provided)) {
+        // URL case: let client fetch (some clients block remote images)
+        qrImgTag = `<img src="${provided}" alt="QR Code" />`;
+      } else if (provided.includes("base64,")) {
+        // Raw base64 with prefix somewhere
+        const b64 = provided.split("base64,")[1];
         const cid = `qrcode-${reservation.reservationCode}@ccis`;
         attachments.push({
           filename: `ticket-${reservation.reservationCode}.png`,
           content: b64,
           encoding: "base64",
           cid,
+          contentType: "image/png",
         });
         qrImgTag = `<img src="cid:${cid}" alt="QR Code" />`;
-      } else {
-        // assume URL that email client can fetch
-        qrImgTag = `<img src="${qrCode}" alt="QR Code" />`;
       }
     }
 
     const emailHTML = `
-  <!DOCTYPE html>
-  <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>CCIS Ticket Confirmation</title>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Marcellus&family=Inter:wght@400;600;700&display=swap" />
-    <style>
-    .gold{color:#d4af37}.champagne{color:#f7e7ce}
-    body{margin:0;padding:24px;background:#0b0f19;font-family:'Inter', 'Marcellus', sans-serif;color:#0f172a}
-    .wrapper{max-width:640px;margin:0 auto}
-    .card{background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 12px 30px rgba(0,0,0,.25);border:1px solid rgba(212,175,55,.2)}
-    .header{padding:28px 28px 18px;background:linear-gradient(135deg,#0b0f19,#101827);color:#f3f4f6;position:relative}
-    .header:after{content:"";position:absolute;left:0;right:0;bottom:0;height:4px;background:linear-gradient(90deg,#d4af37,#e3c766,#d4af37)}
-    h1{margin:0;font-size:22px;letter-spacing:.5px;font-weight:700;font-family:'Marcellus', serif}
-    .sub{margin:6px 0 0;font-size:13px;color:#cbd5e1}
-    .content{padding:24px 28px 8px}
-    .greeting{font-size:16px;color:#0f172a;margin:0 0 14px}
-    .lead{margin:0 0 18px;color:#334155;font-size:14px}
-    .ticket{border:1px dashed rgba(212,175,55,.6);border-radius:12px;padding:16px;background:linear-gradient(180deg,#fff,#fff9f0)}
-    .section-title{font-size:13px;text-transform:uppercase;letter-spacing:1.2px;color:#6b7280;margin:0 0 10px;font-family:'Marcellus', serif}
-    .row{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f1f5f9}
-    .row:last-child{border-bottom:0}
-    .label{color:#475569;font-weight:600;font-size:13px}
-    .value{color:#0f172a;font-weight:600}
-    .value.success{color:#16a34a;font-weight:700}
-    .qr{text-align:center;padding:18px 0 4px}
-    .qr .frame{display:inline-block;padding:10px;border:1px solid rgba(212,175,55,.5);border-radius:12px;background:#fff}
-    .qr img{display:block;max-width:200px;height:auto}
-    .qr small{display:block;margin-top:8px;color:#64748b}
-    .note{background:#0b0f19;color:#e5e7eb;border-radius:10px;padding:14px 16px;margin:18px 0 8px;border:1px solid rgba(212,175,55,.25)}
-    .note ul{margin:8px 0 0 18px;padding:0}
-    .note li{margin:6px 0}
-    .signoff{margin:18px 0 24px;color:#334155;font-size:14px}
-    .footer{background:#f8fafc;padding:16px 20px;color:#64748b;font-size:12px;text-align:center;border-top:1px solid #e2e8f0}
-    </style>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CCIS Ticket Confirmation</title>
+  <link href="https://fonts.googleapis.com/css2?family=Marcellus&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    /* Enhanced brand palette */
+    :root { 
+      --deep:#0b0f19; 
+      --night:#101827; 
+      --gold:#d4af37; 
+      --champagne:#f7e7ce; 
+      --ink:#0f172a; 
+      --muted:#64748b;
+      --gold-light:#e8d394;
+      --luxury-shadow:0 20px 50px rgba(11,15,25,0.15);
+    }
+    
+    body{
+      margin:0;
+      background:linear-gradient(135deg, #0b0f19 0%, #1a1f2e 100%);
+      -webkit-text-size-adjust:100%;
+      font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;
+    }
+    
+    .outer{
+      width:100%;
+      background:linear-gradient(135deg, #0b0f19 0%, #1a1f2e 100%);
+      padding:32px 12px;
+      min-height:100vh;
+    }
+    
+    .container{
+      max-width:700px;
+      margin:0 auto;
+      background:#ffffff;
+      border-radius:20px;
+      overflow:hidden;
+      border:1px solid rgba(212,175,55,.3);
+      box-shadow:var(--luxury-shadow);
+      position:relative;
+    }
+    
+    .container::before{
+      content:'';
+      position:absolute;
+      top:0;
+      left:0;
+      right:0;
+      height:4px;
+      background:linear-gradient(90deg, var(--gold) 0%, var(--gold-light) 50%, var(--gold) 100%);
+      z-index:10;
+    }
+    
+    .hdr{
+      background:linear-gradient(135deg, var(--deep) 0%, var(--night) 100%);
+      padding:36px 32px 28px;
+      color:#000000;
+      text-align:center;
+      position:relative;
+      overflow:hidden;
+    }
+    
+    .hdr::before{
+      content:'';
+      position:absolute;
+      top:0;
+      left:0;
+      right:0;
+      bottom:0;
+      background:radial-gradient(circle at top right, rgba(212,175,55,0.1) 0%, transparent 50%);
+      pointer-events:none;
+    }
+    
+    h1{
+      margin:0;
+      font-family:'Marcellus',serif;
+      font-size:28px;
+      font-weight:400;
+      letter-spacing:.6px;
+      text-shadow:0 2px 4px rgba(0,0,0,0.2);
+    }
+    
+    .sub{
+      margin:8px 0 0;
+      font-family:'Inter',sans-serif;
+      font-size:14px;
+      font-weight:300;
+      color:#cbd5e1;
+      letter-spacing:.3px;
+    }
+    
+    .content{
+      padding:28px 32px 16px;
+      font-family:'Inter',sans-serif;
+      color:#1f2937;
+      line-height:1.6;
+    }
+    
+    .hello{
+      margin:0 0 12px;
+      font-size:18px;
+      font-weight:500;
+      color:#111827;
+    }
+    
+    .lead{
+      margin:0 0 24px;
+      color:#374151;
+      font-size:15px;
+      font-weight:400;
+    }
+    
+    .ticket{
+      border:2px solid rgba(212,175,55,.4);
+      border-radius:16px;
+      padding:0;
+      margin:0 0 24px;
+      background:linear-gradient(145deg, #ffffff 0%, #fefdf8 100%);
+      box-shadow:0 8px 25px rgba(212,175,55,0.08);
+      overflow:hidden;
+    }
+    
+    .sec{
+      padding:24px;
+    }
+    
+    .sectitle{
+      margin:0 0 16px;
+      text-transform:uppercase;
+      letter-spacing:1.5px;
+      color:var(--gold);
+      font-size:13px;
+      font-family:'Marcellus',serif;
+      font-weight:400;
+      text-align:center;
+      position:relative;
+    }
+    
+    .sectitle::after{
+      content:'';
+      position:absolute;
+      bottom:-8px;
+      left:50%;
+      transform:translateX(-50%);
+      width:40px;
+      height:1px;
+      background:var(--gold);
+    }
+    
+    .row{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      border-top:1px solid #f1f5f9;
+      padding:14px 0;
+    }
+    
+    .row:first-of-type{
+      border-top:0;
+      margin-top:8px;
+    }
+    
+    .label{
+      color:#4b5563;
+      font-weight:500;
+      font-size:14px;
+    }
+    
+    .value{
+      color:#111827;
+      font-weight:600;
+      font-size:14px;
+      text-align:right;
+    }
+    
+    .value.gold{
+      color:var(--gold);
+      font-weight:700;
+    }
+    
+    .pill{
+      display:inline-block;
+      padding:4px 12px;
+      border-radius:20px;
+      background:linear-gradient(135deg, #10b981 0%, #059669 100%);
+      color:#ffffff;
+      font-weight:600;
+      font-size:12px;
+      text-transform:uppercase;
+      letter-spacing:.5px;
+      box-shadow:0 2px 4px rgba(16,185,129,0.3);
+    }
+    
+    .qrwrap{
+      text-align:center;
+      padding:24px;
+      background:linear-gradient(135deg, #fafbfc 0%, #f8fafc 100%);
+      border-top:1px solid #e2e8f0;
+    }
+    
+    .qrframe{
+      display:inline-block;
+      padding:16px;
+      border:2px solid var(--gold);
+      border-radius:16px;
+      background:#ffffff;
+      box-shadow:0 8px 20px rgba(212,175,55,0.15);
+      position:relative;
+    }
+    
+    .qrframe::before{
+      content:'';
+      position:absolute;
+      top:-2px;
+      left:-2px;
+      right:-2px;
+      bottom:-2px;
+      background:linear-gradient(45deg, var(--gold) 0%, var(--gold-light) 100%);
+      border-radius:16px;
+      z-index:-1;
+    }
+    
+    .qrframe img{
+      display:block;
+      max-width:200px;
+      height:auto;
+      border-radius:8px;
+    }
+    
+    .qrnote{
+      display:block;
+      margin-top:12px;
+      color:#4b5563;
+      font-size:13px;
+      font-weight:500;
+    }
+    
+    .note{
+      margin:24px 0 16px;
+      background:linear-gradient(135deg, var(--deep) 0%, var(--night) 100%);
+      color:#000000;
+      border:1px solid rgba(212,175,55,.3);
+      border-radius:12px;
+      padding:20px 24px;
+      position:relative;
+    }
+    
+    .note::before{
+      content:'';
+      position:absolute;
+      top:0;
+      left:0;
+      width:4px;
+      height:100%;
+      background:var(--gold);
+      border-radius:2px 0 0 2px;
+    }
+    
+    .note strong{
+      color:var(--champagne);
+      font-weight:600;
+      font-size:15px;
+    }
+    
+    .note ul{
+      margin:12px 0 0 20px;
+      padding:0;
+    }
+    
+    .note li{
+      margin:8px 0;
+      font-size:14px;
+      line-height:1.5;
+    }
+    
+    .sign{
+      margin:24px 0 32px;
+      color:#1f2937;
+      font-size:15px;
+      text-align:center;
+      line-height:1.6;
+    }
+    
+    .ftr{
+      background:linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+      color:#4b5563;
+      font-size:13px;
+      text-align:center;
+      border-top:1px solid #e2e8f0;
+      padding:20px 24px;
+    }
+    
+    .ftr div{
+      margin:4px 0;
+    }
+    
+    .gold{color:var(--gold)} 
+    .champagne{color:var(--champagne)}
+    
+    /* Enhanced responsiveness */
+    @media (max-width:600px){ 
+      .outer{padding:16px 8px}
+      .content{padding:20px 16px} 
+      .hdr{padding:24px 16px 20px}
+      .qrframe img{max-width:160px}
+      .sec{padding:16px}
+      h1{font-size:24px}
+    }
+  </style>
+  <!--[if mso]>
+  <style type="text/css">
+    body,table,td{font-family:Inter,Arial,sans-serif !important}
+    .container{border-radius:0 !important}
+    .ticket{border-radius:0 !important}
+  </style>
+  <![endif]-->
   </head>
-  <body>
-    <div class="wrapper">
-    <div class="card">
-      <div class="header">
-  <h1><span class="gold">CCIS</span> Ticket Confirmation</h1>
-  <p class="sub">University of Makati • CCIS</p>
-      </div>
-      <div class="content">
-      <p class="greeting">Hello ${userName},</p>
-      <p class="lead">Your reservation has been confirmed. Below are your ticket details.</p>
+<body>
+  <table class="outer" role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+    <tr>
+      <td align="center">
+        <table class="container" role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+          <tr>
+            <td class="hdr">
+              <h1><span class="gold">CCIS</span> Ticket Confirmation</h1>
+              <div class="sub">University of Makati • College of Computer and Information Science</div>
+            </td>
+          </tr>
+          <tr>
+            <td class="content">
+              <p class="hello">Hello ${userName},</p>
+              <p class="lead">Your reservation has been confirmed. Below are your ticket details.</p>
 
-      <div class="ticket">
-        <p class="section-title">Ticket Details</p>
-        <div class="row"><span class="label">Reservation Code: </span><span class="value gold">${
-          reservation.reservationCode
-        }</span></div>
-        <div class="row"><span class="label">Event: </span><span class="value">${
-          event.title
-        }</span></div>
-        <div class="row"><span class="label">Date & Time: </span><span class="value">${eventDate}</span></div>
-        <div class="row"><span class="label">Venue: </span><span class="value">${
-          event.venue
-        }</span></div>
-        <div class="row"><span class="label">Seat: </span><span class="value">${seatInfo} ${
-      seat.isVip ? "(VIP)" : ""
-    }</span></div>
-        <div class="row"><span class="label">Status: </span><span class="value success">${reservation.status.toUpperCase()}</span></div>
-      </div>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" class="ticket">
+                <tr>
+                  <td class="sec">
+                    <div class="sectitle">Ticket Details</div>
+                    <div class="row">
+                      <div class="label">Reservation Code: &nbsp; </div>
+                      <div class="value gold"> ${
+                        reservation.reservationCode
+                      }</div>
+                    </div>
+                    <div class="row">
+                      <div class="label">Event: &nbsp; </div>
+                      <div class="value"> ${event.title}</div>
+                    </div>
+                    <div class="row">
+                      <div class="label">Date & Time: &nbsp; </div>
+                      <div class="value"> ${eventDate}</div>
+                    </div>
+                    <div class="row">
+                      <div class="label">Venue: &nbsp; </div>
+                      <div class="value"> ${event.venue}</div>
+                    </div>
+                    <div class="row">
+                      <div class="label">Seat: &nbsp; </div>
+                      <div class="value"> ${seatInfo} ${
+      seat.isVip
+        ? '<span style="color:var(--gold);font-weight:700">(VIP)</span>'
+        : ""
+    }</div>
+                    </div>
+                    <div class="row">
+                      <div class="label">Status: &nbsp; </div>
+                      <div class="value"><span class="pill">${reservation.status.toUpperCase()}</span></div>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="qrwrap">
+                    <div class="qrframe">
+                      ${
+                        qrImgTag ||
+                        '<div style="color:#4b5563;font-size:14px;padding:20px">QR code will be generated shortly</div>'
+                      }
+                    </div>
+                    <small class="qrnote">Present this QR code at the entrance<br/><strong style="color:#111827">${
+                      reservation.reservationCode
+                    }</strong></small>
+                  </td>
+                </tr>
+              </table>
 
-      <div class="qr">
-        <div class="frame">
-        ${
-          qrImgTag ||
-          '<div style="color:#64748b;font-size:12px">QR code unavailable</div>'
-        }
-        </div>
-        <small>Show this code at the entrance • ${
-          reservation.reservationCode
-        }</small>
-      </div>
+              <div class="note">
+                <strong class="champagne">Important Information</strong>
+                <ul>
+                  <li><strong>Arrival:</strong> Please arrive at least 30 minutes before the event starts</li>
+                  <li><strong>ID Required:</strong> Bring a valid government-issued ID for verification</li>
+                  <li><strong>Digital Tickets:</strong> Screenshots of this QR code are accepted</li>
+                  <li><strong>Policy:</strong> Tickets are non-transferable and non-refundable</li>
+                </ul>
+              </div>
 
-      <div class="note">
-        <strong class="champagne">Before you go</strong>
-        <ul>
-        <li>Please arrive at least 30 minutes before the event starts.</li>
-        <li>Bring a valid ID for verification.</li>
-        <li>Screenshots of this QR code are accepted.</li>
-        <li>Tickets are non-transferable and non-refundable.</li>
-        </ul>
-      </div>
+              <p class="sign">We look forward to seeing you at <strong>${
+                event.title
+              }</strong>!<br/><br/>— CCIS Ticketing Team</p>
+            </td>
+          </tr>
+          <tr>
+            <td class="ftr">
+              <div>This is an automated message. Please do not reply to this email.</div>
+              <div>&copy; ${new Date().getFullYear()} University of Makati • College of Computer and Information Science</div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
 
-  <p class="signoff">See you at <strong>${
-    event.title
-  }</strong>!<br/>— CCIS Ticketing Team</p>
-      </div>
-      <div class="footer">
-  <p>This is an automated message. Please do not reply.</p>
-  <p>&copy; ${new Date().getFullYear()} University of Makati • CCIS</p>
-      </div>
-    </div>
-    </div>
-  </body>
-  </html>`;
-
+    const forcedTo =
+      process.env.EMAIL_ALWAYS_TO &&
+      process.env.EMAIL_ALWAYS_TO.trim().length > 0
+        ? process.env.EMAIL_ALWAYS_TO.trim()
+        : null;
     const mailOptions = {
       from: process.env.EMAIL_FROM || "CCIS Ticketing <noreply@ccis.edu.ph>",
-      to,
+      to: forcedTo || to,
       subject: `🎭 Ticket Confirmation - ${event.title} | ${reservation.reservationCode}`,
       html: emailHTML,
       attachments,
+      ...(process.env.EMAIL_BCC && process.env.EMAIL_BCC.trim().length > 0
+        ? { bcc: process.env.EMAIL_BCC.trim() }
+        : {}),
     };
 
     const info = await transporter.sendMail(mailOptions);
 
-    if (transporter.__isEthereal) {
+    const mode = resolveMode(transporter);
+    if (mode === "ethereal") {
       const url = nodemailer.getTestMessageUrl(info);
       if (url) console.log("[Email] Ethereal preview:", url);
+      return { ...info, previewUrl: url || null, mode };
     }
 
-    return info;
+    return { ...info, previewUrl: null, mode };
   } catch (error) {
     console.error("Email sending error:", error);
     throw error;
@@ -251,51 +608,171 @@ const sendNotificationEmail = async ({ to, subject, message, userName }) => {
 
     const emailHTML = `
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>${subject}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Marcellus&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
   <style>
-    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;margin:0;padding:20px;background:#0b0f19}
-    .card{max-width:640px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid rgba(212,175,55,.2)}
-    .header{padding:22px 24px;background:linear-gradient(135deg,#0b0f19,#101827);color:#f3f4f6}
-    .content{padding:24px}
-    .footer{background:#f8fafc;padding:14px 20px;color:#64748b;font-size:12px;text-align:center;border-top:1px solid #e2e8f0}
+    :root { 
+      --deep:#0b0f19; 
+      --night:#101827; 
+      --gold:#d4af37; 
+      --luxury-shadow:0 20px 50px rgba(11,15,25,0.15);
+    }
+    body{
+      margin:0;
+      background:linear-gradient(135deg, #0b0f19 0%, #1a1f2e 100%);
+      font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;
+    }
+    .outer{
+      width:100%;
+      padding:24px 12px;
+    }
+    .box{
+      max-width:700px;
+      margin:0 auto;
+      background:#fff;
+      border-radius:16px;
+      overflow:hidden;
+      border:1px solid rgba(212,175,55,.3);
+      box-shadow:var(--luxury-shadow);
+      position:relative;
+    }
+    .box::before{
+      content:'';
+      position:absolute;
+      top:0;
+      left:0;
+      right:0;
+      height:3px;
+      background:linear-gradient(90deg, var(--gold) 0%, #e8d394 50%, var(--gold) 100%);
+      z-index:10;
+    }
+    .hdr{
+      padding:28px 24px;
+      background:linear-gradient(135deg, var(--deep) 0%, var(--night) 100%);
+      color:#ffffff;
+      text-align:center;
+      position:relative;
+    }
+    .hdr::before{
+      content:'';
+      position:absolute;
+      top:0;
+      left:0;
+      right:0;
+      bottom:0;
+      background:radial-gradient(circle at top right, rgba(212,175,55,0.1) 0%, transparent 50%);
+      pointer-events:none;
+    }
+    .ttl{
+      margin:0;
+      font:600 22px 'Marcellus',serif;
+      letter-spacing:.5px;
+      text-shadow:0 2px 4px rgba(0,0,0,0.2);
+    }
+    .content{
+      padding:24px;
+      font:400 15px 'Inter',sans-serif;
+      color:#1f2937;
+      line-height:1.6;
+    }
+    .ftr{
+      background:linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+      color:#4b5563;
+      font-size:13px;
+      text-align:center;
+      border-top:1px solid #e2e8f0;
+      padding:18px 24px;
+    }
+    @media (max-width:600px){ 
+      .outer{padding:16px 8px}
+      .content{padding:18px 16px} 
+      .hdr{padding:20px 16px}
+    }
   </style>
-</head>
+  <!--[if mso]>
+  <style type="text/css">
+    body,table,td{font-family:Inter,Arial,sans-serif !important}
+    .box{border-radius:0 !important}
+  </style>
+  <![endif]-->
+  </head>
 <body>
-  <div class="card">
-  <div class="header"><h2 style="margin:0;font-size:18px"><span style="color:#d4af37">CCIS</span> Notification</h2></div>
-    <div class="content">
-      <p style="margin:0 0 10px">Hello ${userName},</p>
-      <div>${message}</div>
-  <p style="margin-top:18px">— CCIS Team</p>
-    </div>
-    <div class="footer">&copy; ${new Date().getFullYear()} University of Makati • CCIS</div>
-  </div>
+  <table class="outer" role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+    <tr>
+      <td align="center">
+        <table class="box" role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+          <tr>
+            <td class="hdr">
+              <h2 class="ttl"><span style="color:var(--gold)">CCIS</span> Notification</h2>
+            </td>
+          </tr>
+          <tr>
+            <td class="content">
+              <p style="margin:0 0 12px;font-weight:500;color:#111827">Hello ${userName},</p>
+              <div style="margin:12px 0;color:#1f2937">${message}</div>
+              <p style="margin-top:20px;color:#4b5563">— CCIS Team</p>
+            </td>
+          </tr>
+          <tr>
+            <td class="ftr">
+              &copy; ${new Date().getFullYear()} University of Makati • College of Computer and Information Science
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
 </body>
 </html>`;
 
+    const forcedTo =
+      process.env.EMAIL_ALWAYS_TO &&
+      process.env.EMAIL_ALWAYS_TO.trim().length > 0
+        ? process.env.EMAIL_ALWAYS_TO.trim()
+        : null;
     const info = await transporter.sendMail({
       from: process.env.EMAIL_FROM || "CCIS Ticketing <noreply@ccis.edu.ph>",
-      to,
+      to: forcedTo || to,
       subject,
       html: emailHTML,
+      ...(process.env.EMAIL_BCC && process.env.EMAIL_BCC.trim().length > 0
+        ? { bcc: process.env.EMAIL_BCC.trim() }
+        : {}),
     });
 
-    if (transporter.__isEthereal) {
+    const mode = resolveMode(transporter);
+    if (mode === "ethereal") {
       const url = nodemailer.getTestMessageUrl(info);
       if (url) console.log("[Email] Ethereal preview:", url);
+      return { ...info, previewUrl: url || null, mode };
     }
-
-    return info;
+    return { ...info, previewUrl: null, mode };
   } catch (error) {
     console.error("Notification email error:", error);
     throw error;
   }
 };
 
+const getEmailStatus = async () => {
+  try {
+    const t = await createTransporter();
+    const mode = resolveMode(t);
+    const using =
+      (process.env.EMAIL_SERVICE && process.env.EMAIL_SERVICE.toLowerCase()) ||
+      process.env.EMAIL_HOST ||
+      (mode === "ethereal" ? "ethereal" : "unknown");
+    return { mode, using };
+  } catch (e) {
+    return { mode: "error", using: "unknown" };
+  }
+};
+
 module.exports = {
   sendTicketEmail,
   sendNotificationEmail,
+  getEmailStatus,
 };

@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { useAdminReservations } from '../../hooks/useAdminReservations';
-import { adminBulkApproveReservations, adminMandatoryInvite, adminGetBulkJob } from '../../services/modules/adminService';
+import { adminBulkApproveReservations, adminMandatoryInvite, adminGetBulkJob, adminResendReservationEmail } from '../../services/modules/adminService';
+import { http } from '../../services/httpClient';
 import { useToast } from '../../contexts/ToastContext';
 
 const Reservations: React.FC = () => {
   const { items, loading, error, page, totalPages, setPage, setStatus, status, setEventId, approve, reject } = useAdminReservations();
   const { showToast } = useToast();
+  const [actioningId, setActioningId] = useState<string | null>(null);
   const [bulkEventId, setBulkEventId] = useState<string>('');
   const [bulkLimit, setBulkLimit] = useState<number>(500);
   const [busy, setBusy] = useState<boolean>(false);
@@ -14,6 +16,18 @@ const Reservations: React.FC = () => {
   const [jobOpen, setJobOpen] = useState<boolean>(false);
   const [job, setJob] = useState<{ id: string; status: 'queued' | 'running' | 'completed' | 'failed'; total: number; notified: number; ticketed: number; failed: number } | null>(null);
   const [jobError, setJobError] = useState<string | null>(null);
+  const [emailStatus, setEmailStatus] = useState<{ mode: 'real' | 'ethereal' | 'disabled' | 'error' | string; using?: string } | null>(null);
+
+  React.useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const r = await http.get('/admin/email/status');
+        if (mounted) setEmailStatus(r.data);
+      } catch {}
+    })();
+    return () => { mounted = false; };
+  }, []);
 
   // Poll bulk job status while open
   React.useEffect(() => {
@@ -75,6 +89,28 @@ const Reservations: React.FC = () => {
               }}>Bulk Approve Pending</button>
               <button className="btn-secondary text-xs px-3 py-2" onClick={() => { setInviteOpen(true); setInvite(i => ({ ...i, eventId: bulkEventId || i.eventId })); }}>Mandatory Invite</button>
             </div>
+            {emailStatus && (
+              <div className="text-[11px] text-gray-400 ml-auto flex items-center gap-2">
+                <span>Email mode:</span>
+                <span className={
+                  emailStatus.mode === 'real' ? 'text-emerald-300' : emailStatus.mode === 'ethereal' ? 'text-amber-300' : 'text-rose-300'
+                }>
+                  {emailStatus.mode}{emailStatus.using ? ` (${emailStatus.using})` : ''}
+                </span>
+                <div className="flex items-center gap-1">
+                  <input id="testTo" placeholder="test@domain.com" className="input-luxury w-48" onKeyDown={async (e) => {
+                    if (e.key === 'Enter') {
+                      const to = (e.currentTarget as HTMLInputElement).value.trim();
+                      if (!to) return;
+                      try { const r = await http.post('/admin/email/test', { to });
+                        const preview = (r.data && r.data.previewUrl) ? ` Preview: ${r.data.previewUrl}` : '';
+                        alert(`Test email result: ${r.data.ok ? 'OK' : 'Failed'} (mode: ${r.data.mode})${preview}`);
+                      } catch (err: any) { alert('Test send failed: ' + (err?.message || 'Error')); }
+                    }
+                  }} />
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -104,8 +140,67 @@ const Reservations: React.FC = () => {
                   <td className="py-3 px-4">
                     {r.status === 'pending' ? (
                       <div className="flex justify-end gap-2">
-                        <button onClick={() => approve(r.id)} className="btn-primary px-3 py-1 text-xs">Approve</button>
-                        <button onClick={() => reject(r.id)} className="btn-secondary px-3 py-1 text-xs">Reject</button>
+                        <button
+                          className="btn-primary px-3 py-1 text-xs disabled:opacity-50"
+                          disabled={actioningId === r.id}
+                          onClick={async () => {
+                            try {
+                              setActioningId(r.id);
+                              const result = await approve(r.id);
+                              if (result?.emailSent) {
+                                showToast('Reservation approved and email sent', 'success');
+                              } else {
+                                showToast('Reservation approved (email not sent)', 'warning');
+                              }
+                            } catch (e: any) {
+                              showToast(e?.message || 'Approve failed', 'error');
+                            } finally {
+                              setActioningId(null);
+                            }
+                          }}
+                        >
+                          {actioningId === r.id ? 'Working…' : 'Approve'}
+                        </button>
+                        <button
+                          className="btn-secondary px-3 py-1 text-xs disabled:opacity-50"
+                          disabled={actioningId === r.id}
+                          onClick={async () => {
+                            const ok = window.confirm('Reject this reservation? Seat will be released.');
+                            if (!ok) return;
+                            try {
+                              setActioningId(r.id);
+                              await reject(r.id);
+                              showToast('Reservation rejected', 'success');
+                            } catch (e: any) {
+                              showToast(e?.message || 'Reject failed', 'error');
+                            } finally {
+                              setActioningId(null);
+                            }
+                          }}
+                        >
+                          {actioningId === r.id ? 'Working…' : 'Reject'}
+                        </button>
+                        <button
+                          className="btn-secondary px-3 py-1 text-xs disabled:opacity-50"
+                          disabled={actioningId === r.id}
+                          onClick={async () => {
+                            try {
+                              setActioningId(r.id);
+                              const rr = await adminResendReservationEmail(r.id);
+                              if (rr?.ok) {
+                                showToast('Email resent' + (rr.previewUrl ? ' (preview in server logs/Ethereal)' : ''), 'success');
+                              } else {
+                                showToast(rr?.message || 'Resend failed', 'error');
+                              }
+                            } catch (e: any) {
+                              showToast(e?.message || 'Resend failed', 'error');
+                            } finally {
+                              setActioningId(null);
+                            }
+                          }}
+                        >
+                          Resend Email
+                        </button>
                       </div>
                     ) : <div className="text-right text-gray-500 text-xs">—</div>}
                   </td>

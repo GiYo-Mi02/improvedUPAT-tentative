@@ -44,7 +44,7 @@ const officers: Officer[] = [
   },
   {
     id: '3',
-    name: 'Cyzbelle Ombao',
+    name: 'Czybelle Ombao',
     position: 'Secretary',
     subRoles: ['Head of Logistics'],
     course: 'Diploma in Information Systems',
@@ -174,7 +174,7 @@ const Council: React.FC = () => {
         {/* History */}
         <section className="grid md:grid-cols-3 gap-10 items-start">
           <Reveal className="md:col-span-1 flex flex-col items-start gap-4" variant="up">
-            <div className="bg-white w-30 h-22 rounded-full flex items-center justify-center shadow-lg">
+            <div className="bg-white w-23 h-23 rounded-full flex items-center justify-center shadow-lg">
               <img src="./official_logo.png" alt=""/>
             </div>
             
