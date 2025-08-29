@@ -44,13 +44,22 @@ const sequelize = new Sequelize(
     host: process.env.DB_HOST || "localhost",
     port: Number(process.env.DB_PORT || 3306),
     dialect,
-    dialectOptions: sslOptions,
+    dialectOptions: {
+      ...sslOptions,
+      // MySQL2 specific options
+      charset: "utf8mb4",
+      supportBigNumbers: true,
+      bigNumberStrings: true,
+      connectTimeout: Number(process.env.DB_CONNECT_TIMEOUT || 60000),
+      // Note: maxAllowedPacket must be set at MySQL server level, not in client
+    },
     logging: process.env.NODE_ENV === "development" ? console.log : false,
     pool: {
       max: Number(process.env.DB_POOL_MAX || 10),
       min: Number(process.env.DB_POOL_MIN || 0),
       acquire: Number(process.env.DB_POOL_ACQUIRE || 30000),
       idle: Number(process.env.DB_POOL_IDLE || 10000),
+      // maxAllowedPacket is a server setting, not a client pool setting
     },
     define: {
       timestamps: true,

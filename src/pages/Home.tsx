@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { Link } from 'react-router-dom';
-import { Calendar, Users, Sparkles, ArrowRight, Star, X } from 'lucide-react';
+import { Calendar, Users, Sparkles, ArrowRight, ArrowLeft, Star, X } from 'lucide-react';
 const EventsCalendarLazy = lazy(() => import('../components/events/EventsCalendar'));
 import Typewriter from '../components/ui/Typewriter';
 import Reveal from '../components/ui/Reveal';
+import Modal from '../components/ui/Modal';
 import { eventsAPI, galleryAPI } from '../services/api';
 import { usePublicAnnouncements } from '../hooks/useAnnouncements';
 import { Megaphone } from 'lucide-react';
@@ -49,6 +50,15 @@ const Home: React.FC = () => {
   const pausedRef = useRef<boolean>(false);
   const calendarRef = useRef<HTMLDivElement | null>(null);
   const { items: announcements } = usePublicAnnouncements();
+  const annScrollRef = useRef<HTMLDivElement | null>(null);
+  const [showAnnModal, setShowAnnModal] = useState(false);
+  const [activeAnnouncement, setActiveAnnouncement] = useState<any>(null);
+
+  // Helper: announcement excerpt without relying on line-clamp plugin
+  const annExcerpt = (text: string, limit = 220) => {
+    const t = (text || '').toString();
+    return t.length > limit ? t.slice(0, limit - 1) + '…' : t;
+  };
 
   useEffect(() => {
     pausedRef.current = paused;
@@ -325,28 +335,100 @@ const Home: React.FC = () => {
                 <h2 className="text-xl font-heading">Announcements</h2>
               </div>
             </Reveal>
-            <div className="space-y-4">
-              {announcements.slice(0, 6).map((a) => (
-                <div key={a.id} className="card-luxury p-4">
-                  <div className="text-white font-medium mb-2">{a.title}</div>
-                  <div className="flex flex-col md:flex-row gap-4 items-start">
-                    {a.imagePath && (
-                      <img
-                      src={/^https?:/i.test(a.imagePath) ? (a.imagePath as string) : `${SERVER_BASE}${(a.imagePath as string).startsWith('/') ? a.imagePath : '/' + a.imagePath}`}
-                      alt={a.title}
-                      className="w-full md:w-40 md:h-40 object-cover rounded-md border border-white/10"
-                      />
+            {/* Horizontal scroll container with controls */}
+            <div className="relative -mx-4">
+              {/* Left button (md+), positioned just outside content */}
+              <button
+                type="button"
+                aria-label="Scroll announcements left"
+                onClick={() => annScrollRef.current?.scrollBy({ left: -Math.round((annScrollRef.current?.clientWidth || 600) * 0.85), behavior: 'smooth' })}
+                className="hidden md:flex absolute left-0 -translate-x-1/2 top-1/2 -translate-y-1/2 z-10 items-center justify-center w-10 h-10 rounded-full bg-black/40 hover:bg-black/60 border border-white/10 text-white shadow"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+              {/* Right button (md+), positioned just outside content */}
+              <button
+                type="button"
+                aria-label="Scroll announcements right"
+                onClick={() => annScrollRef.current?.scrollBy({ left: Math.round((annScrollRef.current?.clientWidth || 600) * 0.85), behavior: 'smooth' })}
+                className="hidden md:flex absolute right-0 translate-x-1/2 top-1/2 -translate-y-1/2 z-10 items-center justify-center w-10 h-10 rounded-full bg-black/40 hover:bg-black/60 border border-white/10 text-white shadow"
+              >
+                <ArrowRight className="w-5 h-5" />
+              </button>
+
+              <div
+                ref={annScrollRef}
+                className="px-2 sm:px-4 lg:px-6 flex gap-4 xl:gap-6 overflow-x-auto pb-2 snap-x snap-mandatory scroll-smooth"
+                role="region"
+                aria-label="Announcements horizontal scroller"
+              >
+                {announcements.map((a) => (
+                  <div
+                    key={a.id}
+                    className="card-luxury p-4 w-[90vw] sm:w-[75vw] md:w-[520px] lg:w-[560px] xl:w-[480px] 2xl:w-[520px] flex-shrink-0 snap-center xl:snap-start cursor-pointer"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => { setActiveAnnouncement(a); setShowAnnModal(true); }}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setActiveAnnouncement(a); setShowAnnModal(true); } }}
+                  >
+                    <div className="text-white font-medium mb-2 truncate">{a.title}</div>
+                    <div className="flex flex-col gap-3">
+                      {a.imagePath && (
+                        <img
+                          src={/^https?:/i.test(a.imagePath) ? (a.imagePath as string) : `${SERVER_BASE}${(a.imagePath as string).startsWith('/') ? a.imagePath : '/' + a.imagePath}`}
+                          alt={a.title}
+                          className="w-full h-48 sm:h-56 md:h-60 object-cover rounded-md border border-white/10"
+                          loading="lazy"
+                          decoding="async"
+                        />
+                      )}
+                      <div className="text-gray-300 text-sm whitespace-pre-wrap">{annExcerpt(a.message, 220)}</div>
+                      <button
+                        type="button"
+                        className="self-start text-luxury-gold text-xs hover:underline"
+                        onClick={(e) => { e.stopPropagation(); setActiveAnnouncement(a); setShowAnnModal(true); }}
+                      >
+                        Read more
+                      </button>
+                    </div>
+                    {a.endsAt && (
+                      <div className="text-xs text-gray-400 mt-2">Until {new Date(a.endsAt).toLocaleString()}</div>
                     )}
-                    <div className="text-gray-300 text-sm whitespace-pre-wrap flex-1">{a.message}</div>
                   </div>
-                  {a.endsAt && (
-                    <div className="text-xs text-gray-400 mt-2">Until {new Date(a.endsAt).toLocaleString()}</div>
-                  )}
-                </div>
-              ))}
+                ))}
+              </div>
+
+              {/* Edge fades (do not block interactions) */}
+              <div aria-hidden="true" className="pointer-events-none absolute left-0 top-0 h-full w-6 sm:w-8 xl:w-12 bg-gradient-to-r from-black/50 to-transparent" />
+              <div aria-hidden="true" className="pointer-events-none absolute right-0 top-0 h-full w-6 sm:w-8 xl:w-12 bg-gradient-to-l from-black/50 to-transparent" />
             </div>
           </div>
         </section>
+      )}
+
+      {/* Announcement Modal */}
+      {showAnnModal && activeAnnouncement && (
+        <Modal isOpen={showAnnModal} onClose={() => setShowAnnModal(false)} title={activeAnnouncement.title} maxWidthClass="max-w-5xl">
+          <div className="flex flex-col md:flex-row gap-5">
+            <div className="md:basis-1/2 md:max-w-[50%] flex-shrink-0">
+              {activeAnnouncement.imagePath && (
+                <img
+                  src={/^https?:/i.test(activeAnnouncement.imagePath) ? activeAnnouncement.imagePath : `${SERVER_BASE}${activeAnnouncement.imagePath.startsWith('/') ? activeAnnouncement.imagePath : '/' + activeAnnouncement.imagePath}`}
+                  alt={activeAnnouncement.title}
+                  className="w-full max-h-[70vh] object-contain rounded-md border border-white/10"
+                />
+              )}
+            </div>
+            <div className="md:basis-1/2 md:max-w-[50%] flex flex-col min-h-0">
+              {activeAnnouncement.endsAt && (
+                <div className="text-xs text-gray-400 text-right mb-2">Until {new Date(activeAnnouncement.endsAt).toLocaleString()}</div>
+              )}
+              <div className="text-gray-200 whitespace-pre-wrap overflow-y-auto pr-2 max-h-[70vh]">
+                {activeAnnouncement.message}
+              </div>
+            </div>
+          </div>
+        </Modal>
       )}
 
       {/* Calendar of Events */}

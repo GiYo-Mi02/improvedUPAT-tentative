@@ -12,9 +12,9 @@ const Reservations: React.FC = () => {
   const [bulkLimit, setBulkLimit] = useState<number>(500);
   const [busy, setBusy] = useState<boolean>(false);
   const [inviteOpen, setInviteOpen] = useState<boolean>(false);
-  const [invite, setInvite] = useState<{ eventId: string; emails: string; message: string; sendTickets: boolean; limit: number; concurrency?: number }>({ eventId: '', emails: '', message: '', sendTickets: false, limit: 1000, concurrency: 5 });
+  const [invite, setInvite] = useState<{ eventId: string; emails: string; subject: string; title: string; message: string; sendTickets: boolean; limit: number; concurrency?: number; posterFile?: File | null }>({ eventId: '', emails: '', subject: '', title: '', message: '', sendTickets: false, limit: 1500, concurrency: 5, posterFile: null });
   const [jobOpen, setJobOpen] = useState<boolean>(false);
-  const [job, setJob] = useState<{ id: string; status: 'queued' | 'running' | 'completed' | 'failed'; total: number; notified: number; ticketed: number; failed: number } | null>(null);
+  const [job, setJob] = useState<{ id: string; status: 'queued' | 'running' | 'completed' | 'completed_with_errors' | 'failed'; total: number; notified: number; ticketed: number; failed: number; errors?: Array<{ email?: string; stage?: string; error?: string }> } | null>(null);
   const [jobError, setJobError] = useState<string | null>(null);
   const [emailStatus, setEmailStatus] = useState<{ mode: 'real' | 'ethereal' | 'disabled' | 'error' | string; using?: string } | null>(null);
 
@@ -33,10 +33,10 @@ const Reservations: React.FC = () => {
   React.useEffect(() => {
     if (!jobOpen || !job?.id) return;
     let cancelled = false;
-    const tick = async () => {
+  const tick = async () => {
       try {
-        const data = await adminGetBulkJob(job.id);
-        if (!cancelled) setJob({ id: data.id, status: data.status as any, total: data.total, notified: data.notified, ticketed: data.ticketed, failed: data.failed });
+    const data = await adminGetBulkJob(job.id);
+    if (!cancelled) setJob({ id: data.id, status: data.status as any, total: data.total, notified: data.notified, ticketed: data.ticketed, failed: data.failed, errors: (data as any).errors || [] });
       } catch (e: any) {
         if (!cancelled) setJobError(e.message || 'Failed to fetch job status');
       }
@@ -231,8 +231,16 @@ const Reservations: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-xs mb-1 text-gray-400">Limit</label>
-                  <input type="number" min={1} max={2000} className="input-luxury w-full" value={invite.limit} onChange={e => setInvite(i => ({ ...i, limit: Math.max(1, Math.min(2000, Number(e.target.value))) }))} />
-                  <p className="text-[10px] text-gray-500 mt-1">If emails are empty, first N active students will be invited.</p>
+                  <input type="number" min={1} max={5000} className="input-luxury w-full" value={invite.limit} onChange={e => setInvite(i => ({ ...i, limit: Math.max(1, Math.min(5000, Number(e.target.value))) }))} />
+                  <p className="text-[10px] text-gray-500 mt-1">If emails are empty, first N active students will be invited. Default 1,500.</p>
+                </div>
+                <div>
+                  <label className="block text-xs mb-1 text-gray-400">Custom Subject (optional)</label>
+                  <input className="input-luxury w-full" value={invite.subject} onChange={e => setInvite(i => ({ ...i, subject: e.target.value }))} placeholder="e.g., Mandatory Attendance: CCIS General Assembly" />
+                </div>
+                <div>
+                  <label className="block text-xs mb-1 text-gray-400">Email Title (header, optional)</label>
+                  <input className="input-luxury w-full" value={invite.title} onChange={e => setInvite(i => ({ ...i, title: e.target.value }))} placeholder="Email header title" />
                 </div>
                 <div className="md:col-span-2">
                   <label className="block text-xs mb-1 text-gray-400">Emails (comma or newline separated)</label>
@@ -242,6 +250,13 @@ const Reservations: React.FC = () => {
                   <label className="block text-xs mb-1 text-gray-400">Message (optional)</label>
                   <textarea className="input-luxury w-full h-24" value={invite.message} onChange={e => setInvite(i => ({ ...i, message: e.target.value }))} placeholder={`You are required to attend ...`} />
                 </div>
+                <div className="md:col-span-2">
+                  <label className="block text-xs mb-1 text-gray-400">Event Poster (optional)</label>
+                  <input type="file" accept="image/*" className="input-luxury w-full" onChange={e => {
+                    const f = e.target.files && e.target.files[0] ? e.target.files[0] : null;
+                    setInvite(i => ({ ...i, posterFile: f || null }));
+                  }} />
+                </div>
                 <div className="md:col-span-2 flex items-center gap-2">
                   <input id="sendTickets" type="checkbox" checked={invite.sendTickets} onChange={e => setInvite(i => ({ ...i, sendTickets: e.target.checked }))} />
                   <label htmlFor="sendTickets" className="text-sm text-gray-300">Also issue tickets automatically</label>
@@ -249,11 +264,11 @@ const Reservations: React.FC = () => {
               </div>
               <div className="flex justify-end gap-3 pt-6">
                 <button className="btn-secondary px-4 py-2" onClick={() => setInviteOpen(false)}>Cancel</button>
-                <button className="btn-primary px-6 py-2 disabled:opacity-40" disabled={!invite.eventId || busy} onClick={async () => {
+        <button className="btn-primary px-6 py-2 disabled:opacity-40" disabled={!invite.eventId || busy} onClick={async () => {
                   try {
                     setBusy(true);
                     const emails = invite.emails.split(/[\n,]/).map(s => s.trim()).filter(Boolean);
-                    const r = await adminMandatoryInvite(invite.eventId, { emails, message: invite.message, sendTickets: invite.sendTickets, limit: invite.limit, background: true, concurrency: invite.concurrency });
+          const r = await adminMandatoryInvite(invite.eventId, { emails, message: invite.message, subject: invite.subject, title: invite.title, sendTickets: invite.sendTickets, limit: invite.limit, background: true, concurrency: invite.concurrency, posterFile: invite.posterFile || undefined });
                     if (r?.jobId) {
                       setInviteOpen(false);
                       setJob({ id: r.jobId, status: 'queued', total: r.total || emails.length, notified: 0, ticketed: 0, failed: 0 });
@@ -279,7 +294,7 @@ const Reservations: React.FC = () => {
         {jobOpen && job && (
           <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
             <div className="card-luxury p-6 w-full max-w-lg relative">
-              {job.status === 'completed' || job.status === 'failed' ? (
+              {job.status === 'completed' || job.status === 'completed_with_errors' || job.status === 'failed' ? (
                 <button className="absolute top-2 right-2 text-gray-400 hover:text-white" onClick={() => { setJobOpen(false); setJob(null); }}>✕</button>
               ) : null}
               <h3 className="heading-tertiary mb-4">Bulk Invite Progress</h3>
@@ -301,11 +316,33 @@ const Reservations: React.FC = () => {
                 {job.status === 'completed' && (
                   <div className="text-xs text-emerald-300">Done. Issued {job.ticketed} ticket(s); {job.failed} failure(s).</div>
                 )}
+                {job.status === 'completed_with_errors' && (
+                  <div className="text-xs text-amber-300">
+                    Done with some errors. Issued {job.ticketed} ticket(s); {job.failed} failure(s).
+                  </div>
+                )}
                 {job.status === 'failed' && (
-                  <div className="text-xs text-rose-300">Job failed. Check server logs for details.</div>
+                  <div className="text-xs text-rose-300">Job failed. Check job error details and server logs.</div>
+                )}
+                {(job.status === 'completed_with_errors' || job.status === 'failed') && (job.errors && job.errors.length > 0) && (
+                  <div className="mt-2 p-2 bg-luxury-deep/40 rounded border border-rose-400/20 max-h-40 overflow-auto">
+                    <div className="text-[11px] text-gray-300 mb-1">Errors (showing up to 20):</div>
+                    <ul className="space-y-1 text-[11px] text-gray-400">
+                      {job.errors.slice(0, 20).map((e, idx) => (
+                        <li key={idx}>
+                          <span className="text-rose-300">{e.stage || 'error'}</span>
+                          {e.email ? <> • <span className="text-gray-300">{e.email}</span></> : null}
+                          {': '}<span>{e.error}</span>
+                        </li>
+                      ))}
+                      {job.errors.length > 20 && (
+                        <li className="text-[10px] text-gray-500">+{job.errors.length - 20} more…</li>
+                      )}
+                    </ul>
+                  </div>
                 )}
               </div>
-              {job.status === 'completed' || job.status === 'failed' ? (
+              {job.status === 'completed' || job.status === 'completed_with_errors' || job.status === 'failed' ? (
                 <div className="flex justify-end pt-5"><button className="btn-primary px-4 py-2" onClick={() => { setJobOpen(false); setJob(null); }}>Close</button></div>
               ) : (
                 <div className="flex justify-end pt-5"><button className="btn-secondary px-4 py-2" onClick={() => { setJobOpen(false); /* allow hiding while it continues */ }}>Hide</button></div>

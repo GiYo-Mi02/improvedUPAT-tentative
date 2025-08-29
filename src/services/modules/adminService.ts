@@ -35,10 +35,30 @@ export async function adminBulkApproveReservations(eventId: string, limit: numbe
 	} catch (e) { throw new Error(extractErrorMessage(e)); }
 }
 
-export async function adminMandatoryInvite(eventId: string, payload: { emails?: string[]; message?: string; sendTickets?: boolean; limit?: number; background?: boolean; concurrency?: number }) {
+export async function adminMandatoryInvite(
+	eventId: string,
+	payload: { emails?: string[]; message?: string; subject?: string; title?: string; sendTickets?: boolean; limit?: number; background?: boolean; concurrency?: number; posterFile?: File | null }
+) {
 	try {
-		const r = await http.post(`/admin/events/${eventId}/mandatory-invite`, payload);
-		return r.data;
+		const hasFile = payload.posterFile instanceof File;
+		if (hasFile) {
+			const fd = new FormData();
+			if (payload.emails) payload.emails.forEach(e => fd.append('emails[]', e));
+			if (payload.message) fd.append('message', payload.message);
+			if (payload.subject) fd.append('subject', payload.subject);
+			if (payload.title) fd.append('title', payload.title);
+			if (payload.sendTickets !== undefined) fd.append('sendTickets', String(payload.sendTickets));
+			if (payload.limit !== undefined) fd.append('limit', String(payload.limit));
+			if (payload.background !== undefined) fd.append('background', String(payload.background));
+			if (payload.concurrency !== undefined) fd.append('concurrency', String(payload.concurrency));
+			fd.append('poster', payload.posterFile as File);
+			const r = await http.post(`/admin/events/${eventId}/mandatory-invite`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+			return r.data;
+		} else {
+			const { posterFile, ...data } = payload as any;
+			const r = await http.post(`/admin/events/${eventId}/mandatory-invite`, data);
+			return r.data;
+		}
 	} catch (e) { throw new Error(extractErrorMessage(e)); }
 }
 

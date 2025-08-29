@@ -9,6 +9,7 @@ const { sequelize } = require("../config/database");
 const {
   sendTicketEmail,
   sendNotificationEmail,
+  sendInviteEmail,
   getEmailStatus,
 } = require("../utils/emailService");
 const { v4: uuidv4 } = require("uuid");
@@ -28,6 +29,57 @@ const storage = multer.diskStorage({
   },
 });
 const upload = multer({ storage });
+
+// Bulk sending defaults (tunable via env)
+const BULK_CONCURRENCY_DEFAULT = parseInt(
+  process.env.BULK_CONCURRENCY_DEFAULT || "5",
+  10
+);
+const BULK_RETRY_ATTEMPTS = parseInt(
+  process.env.BULK_RETRY_ATTEMPTS || "2",
+  10
+);
+const BULK_RETRY_BASE_MS = parseInt(
+  process.env.BULK_RETRY_BASE_MS || "3000",
+  10
+);
+
+// Helper to safely add errors to job with limits
+const MAX_JOB_ERRORS = 100;
+const MAX_ERROR_MESSAGE_LENGTH = 200;
+function addJobError(job, errorData) {
+  if (!job.errors) job.errors = [];
+  if (job.errors.length >= MAX_JOB_ERRORS) {
+    // Replace the last error with a summary if we're at the limit
+    const summaryIndex = job.errors.findIndex((e) => e.stage === "summary");
+    if (summaryIndex >= 0) {
+      job.errors[summaryIndex] = {
+        stage: "summary",
+        error: `Total errors: ${job.failed || 0}. Showing first ${
+          MAX_JOB_ERRORS - 1
+        } errors.`,
+      };
+    } else {
+      job.errors[MAX_JOB_ERRORS - 1] = {
+        stage: "summary",
+        error: `Total errors: ${job.failed || 0}. Showing first ${
+          MAX_JOB_ERRORS - 1
+        } errors.`,
+      };
+    }
+    return;
+  }
+
+  // Truncate error message
+  const truncatedError = {
+    ...errorData,
+    error: (errorData.error || "")
+      .toString()
+      .substring(0, MAX_ERROR_MESSAGE_LENGTH),
+  };
+
+  job.errors.push(truncatedError);
+}
 
 // Venue capacities mapping
 const VENUE_CAPACITY = {
@@ -85,6 +137,22 @@ async function processWithConcurrency(items, handler, concurrency = 5) {
     next();
   });
 }
+
+// Small helpers for transient error retries
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const isTransientEmailError = (e) => {
+  const msg = ((e && (e.message || e.toString())) || "").toLowerCase();
+  return (
+    msg.includes("rate") ||
+    msg.includes("too many") ||
+    msg.includes("429") ||
+    msg.includes("timeout") ||
+    msg.includes("timed out") ||
+    msg.includes("socket") ||
+    msg.includes("connection closed") ||
+    msg.includes("econnreset")
+  );
+};
 
 // ========== DASHBOARD ==========
 // GET /api/admin/dashboard
@@ -1232,6 +1300,7 @@ router.put("/reservations/:id/reject", async (req, res) => {
 router.post(
   "/events/:id/mandatory-invite",
   authorize("admin"),
+  upload.single("poster"),
   async (req, res) => {
     try {
       const event = await Event.findByPk(req.params.id);
@@ -1244,13 +1313,43 @@ router.post(
       let {
         emails = [],
         message = "",
+        subject = "",
+        title = "",
         sendTickets = false,
-        limit = 1000,
+        limit = 1500,
         background = true,
-        concurrency = 5,
+        concurrency = BULK_CONCURRENCY_DEFAULT,
       } = req.body || {};
+
+      // Normalize when coming from multipart/form-data (arrays/booleans as strings)
+      if (typeof emails === "string") {
+        // Accept comma-separated or repeated field syntax from frontend (emails[])
+        try {
+          const maybeJson = JSON.parse(emails);
+          if (Array.isArray(maybeJson)) emails = maybeJson;
+        } catch {
+          emails = emails
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean);
+        }
+      } else if (req.body["emails[]"]) {
+        const e = req.body["emails[]"]; // can be string or array
+        emails = Array.isArray(e) ? e : [e];
+      }
       if (!Array.isArray(emails)) emails = [];
-      limit = Math.min(parseInt(limit) || 1000, 2000);
+
+      const toBool = (v, def = false) => {
+        if (typeof v === "boolean") return v;
+        if (v === undefined || v === null) return def;
+        const s = String(v).toLowerCase();
+        return s === "1" || s === "true" || s === "yes";
+      };
+
+      sendTickets = toBool(sendTickets, false);
+      background = toBool(background, true);
+      concurrency = parseInt(concurrency) || BULK_CONCURRENCY_DEFAULT;
+      limit = Math.min(parseInt(limit) || 1500, 5000);
       concurrency = clamp(concurrency, 1, 10);
 
       // Fallback to active students if no explicit list provided
@@ -1309,25 +1408,49 @@ router.post(
                   });
                 }
 
-                // Send notification (best-effort)
+                // Send notification (best-effort) with retries on transient errors
                 try {
-                  await sendNotificationEmail({
-                    to: email,
-                    subject: `Mandatory Attendance: ${event.title}`,
-                    message:
-                      message ||
-                      `You are required to attend ${new Date(
-                        event.eventDate
-                      ).toLocaleString()}.`,
-                    userName: user.name,
-                  });
+                  const posterPath = req.file
+                    ? `/uploads/posters/${req.file.filename}`
+                    : event.posterImage || null;
+                  let attempt = 0;
+                  while (true) {
+                    try {
+                      await sendInviteEmail({
+                        to: email,
+                        subject:
+                          (subject && subject.trim()) ||
+                          `Mandatory Attendance: ${event.title}`,
+                        title: (title && title.trim()) || event.title,
+                        message:
+                          message ||
+                          `You are required to attend on ${new Date(
+                            event.eventDate
+                          ).toLocaleString()}.`,
+                        userName: user.name,
+                        posterPath,
+                      });
+                      break;
+                    } catch (err) {
+                      attempt += 1;
+                      if (
+                        attempt > BULK_RETRY_ATTEMPTS ||
+                        !isTransientEmailError(err)
+                      )
+                        throw err;
+                      const backoff =
+                        BULK_RETRY_BASE_MS * Math.pow(2, attempt - 1);
+                      await new Promise((r) => setTimeout(r, backoff));
+                    }
+                  }
                   job.notified += 1;
                 } catch (e) {
-                  job.errors.push({
+                  addJobError(job, {
                     email,
                     stage: "notify",
                     error: e?.message || String(e),
                   });
+                  job.failed = (job.failed || 0) + 1;
                 }
 
                 if (!sendTickets) return;
@@ -1351,11 +1474,12 @@ router.post(
                   });
                   if (!seat) {
                     await t.rollback();
-                    job.errors.push({
+                    addJobError(job, {
                       email,
                       stage: "allocate",
                       error: "No seats left",
                     });
+                    job.failed = (job.failed || 0) + 1;
                     return;
                   }
 
@@ -1406,38 +1530,58 @@ router.post(
                       );
                       await reservation.update({ qrCode: qrCodeDataURL });
                     }
-                    await sendTicketEmail({
-                      to: email,
-                      userName: user.name,
-                      reservation,
-                      event,
-                      seat,
-                      qrCode: reservation.qrCode,
-                    });
+                    // Send ticket with retry on transient errors
+                    let attempt = 0;
+                    while (true) {
+                      try {
+                        await sendTicketEmail({
+                          to: email,
+                          userName: user.name,
+                          reservation,
+                          event,
+                          seat,
+                          qrCode: reservation.qrCode,
+                        });
+                        break;
+                      } catch (err) {
+                        attempt += 1;
+                        if (
+                          attempt > BULK_RETRY_ATTEMPTS ||
+                          !isTransientEmailError(err)
+                        )
+                          throw err;
+                        const backoff =
+                          BULK_RETRY_BASE_MS * Math.pow(2, attempt - 1);
+                        await new Promise((r) => setTimeout(r, backoff));
+                      }
+                    }
                     await reservation.update({ emailSent: true });
                   } catch (e) {
-                    job.errors.push({
+                    addJobError(job, {
                       email,
                       stage: "email",
                       error: e?.message || String(e),
                     });
+                    job.failed = (job.failed || 0) + 1;
                   }
                 } catch (e) {
                   try {
                     await t.rollback();
                   } catch {}
-                  job.errors.push({
+                  addJobError(job, {
                     email,
                     stage: "tx",
                     error: e?.message || String(e),
                   });
+                  job.failed = (job.failed || 0) + 1;
                 }
               } catch (outer) {
-                job.errors.push({
+                addJobError(job, {
                   email,
                   stage: "outer",
                   error: outer?.message || String(outer),
                 });
+                job.failed = (job.failed || 0) + 1;
               }
             },
             concurrency
@@ -1446,10 +1590,13 @@ router.post(
           await event.update({
             metadata: { ...(event.metadata || {}), mandatory: true },
           });
-          job.status = "completed";
+          job.status =
+            job.errors && job.errors.length > 0
+              ? "completed_with_errors"
+              : "completed";
         } catch (e) {
           job.status = "failed";
-          job.errors.push({ stage: "job", error: e?.message || String(e) });
+          addJobError(job, { stage: "job", error: e?.message || String(e) });
         }
       };
 

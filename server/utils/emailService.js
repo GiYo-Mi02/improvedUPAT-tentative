@@ -1,4 +1,6 @@
 const nodemailer = require("nodemailer");
+const path = require("path");
+const fs = require("fs");
 
 // Create email transporter (async to allow Ethereal in dev)
 const createTransporter = async () => {
@@ -49,6 +51,11 @@ const createTransporter = async () => {
     if (isGmail) {
       return nodemailer.createTransport({
         service: "gmail",
+        pool: true,
+        maxConnections: parseInt(process.env.EMAIL_POOL_CONNECTIONS || "3"),
+        maxMessages: parseInt(process.env.EMAIL_POOL_MAX_MESSAGES || "100"),
+        rateDelta: parseInt(process.env.EMAIL_RATE_DELTA_MS || "60000"),
+        rateLimit: parseInt(process.env.EMAIL_RATE_LIMIT || "90"),
         auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
       });
     }
@@ -58,6 +65,11 @@ const createTransporter = async () => {
       host: process.env.EMAIL_HOST,
       port: process.env.EMAIL_PORT ? parseInt(process.env.EMAIL_PORT) : 587,
       secure: process.env.EMAIL_SECURE === "true" || false,
+      pool: true,
+      maxConnections: parseInt(process.env.EMAIL_POOL_CONNECTIONS || "3"),
+      maxMessages: parseInt(process.env.EMAIL_POOL_MAX_MESSAGES || "100"),
+      rateDelta: parseInt(process.env.EMAIL_RATE_DELTA_MS || "60000"),
+      rateLimit: parseInt(process.env.EMAIL_RATE_LIMIT || "90"),
       auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
     });
   } catch (err) {
@@ -81,6 +93,134 @@ const resolveMode = (transporter) => {
   if (transporter.__isNoop) return "disabled";
   if (transporter.__isError) return "error";
   return "real";
+};
+
+// Branded invite/announcement email with optional poster image
+const sendInviteEmail = async ({
+  to,
+  subject,
+  title,
+  message,
+  userName,
+  posterPath,
+}) => {
+  try {
+    const transporter = await createTransporter();
+
+    let attachments = [];
+    let posterHTML = "";
+    if (posterPath && typeof posterPath === "string") {
+      const cid = `poster-${Date.now()}@ccis`;
+      const isDataUrl = /^data:image\//i.test(posterPath);
+      const isHttp = /^https?:\/\//i.test(posterPath);
+      if (isDataUrl) {
+        const m = posterPath.match(/^data:(image\/[\w.+-]+);base64,(.+)$/i);
+        if (m) {
+          const mime = m[1];
+          const b64 = m[2];
+          const ext = (mime.split("/")[1] || "png").toLowerCase();
+          attachments.push({
+            filename: `poster.${ext}`,
+            content: b64,
+            encoding: "base64",
+            contentType: mime,
+            cid,
+          });
+        }
+      } else if (isHttp) {
+        const fileName =
+          path.basename(new URL(posterPath).pathname) || "poster.jpg";
+        attachments.push({ filename: fileName, path: posterPath, cid });
+      } else {
+        const rel = posterPath.replace(/^\/+/, "");
+        const candidateA = path.join(process.cwd(), rel);
+        const candidateB = path.join(process.cwd(), "server", rel);
+        const abs = fs.existsSync(candidateA)
+          ? candidateA
+          : fs.existsSync(candidateB)
+          ? candidateB
+          : candidateA;
+        attachments.push({
+          filename: path.basename(rel) || "poster.jpg",
+          path: abs,
+          cid,
+        });
+      }
+      posterHTML = `<div class="hero"><img src="cid:${cid}" alt="Event Poster"/></div>`;
+    }
+
+    // Normalize message newlines
+    const safeMessage = (message || "").toString().replace(/\n/g, "<br/>");
+
+    const emailHTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>${subject || title || "CCIS Invitation"}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Marcellus&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root{--deep:#0b0f19;--night:#101827;--gold:#d4af37;--muted:#64748b}
+    body{margin:0;background:linear-gradient(135deg,#0b0f19,#1a1f2e);font-family:'Inter',Arial,sans-serif}
+    .outer{width:100%;padding:24px 12px}
+    .box{max-width:760px;margin:0 auto;background:#fff;border:1px solid rgba(212,175,55,.3);border-radius:16px;overflow:hidden;box-shadow:0 10px 30px rgba(11,15,25,.15);position:relative}
+    .box::before{content:'';position:absolute;left:0;right:0;top:0;height:3px;background:linear-gradient(90deg,var(--gold),#e8d394,var(--gold))}
+    .hdr{padding:24px;text-align:center;background:linear-gradient(135deg,var(--deep),var(--night));color:#000000}
+    .ttl{margin:0;font:400 24px 'Marcellus',serif;letter-spacing:.4px}
+    .content{padding:24px;color:#1f2937;line-height:1.6}
+    .hello{margin:0 0 10px;color:#111827;font-weight:600}
+    .hero{margin:8px 0 16px}
+    .hero img{display:block;width:100%;height:auto;border-radius:12px;border:1px solid #e5e7eb}
+    .ftr{background:linear-gradient(135deg,#f8fafc,#f1f5f9);color:#4b5563;text-align:center;font-size:13px;padding:16px;border-top:1px solid #e2e8f0}
+    @media(max-width:600px){.content{padding:18px}}
+  </style>
+  <!--[if mso]><style>.box{border-radius:0!important}</style><![endif]-->
+  </head>
+<body>
+  <table class="outer" role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"><tr><td align="center">
+    <table class="box" role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+      <tr><td class="hdr"><h2 class="ttl"><span style="color:var(--gold)">CCIS</span> ${
+        title || "Invitation"
+      }</h2></td></tr>
+      <tr><td class="content">
+        <p class="hello">Hello ${userName || "Student"},</p>
+  
+  <div>${safeMessage || "You're invited to our upcoming event."}</div>
+   ${posterHTML}
+        <p style="margin-top:16px;color:#4b5563">— CCIS Ticketing System</p>
+      </td></tr>
+      <tr><td class="ftr">&copy; ${new Date().getFullYear()} University of Makati • College of Computer and Information Science</td></tr>
+   
+      </table>
+  </td></tr></table>
+</body>
+</html>`;
+
+    const forcedTo =
+      (process.env.EMAIL_ALWAYS_TO && process.env.EMAIL_ALWAYS_TO.trim()) ||
+      null;
+    const info = await transporter.sendMail({
+      from: process.env.EMAIL_FROM || "CCIS Ticketing <noreply@ccis.edu.ph>",
+      to: forcedTo || to,
+      subject: subject || title || "CCIS Invitation",
+      html: emailHTML,
+      attachments,
+      ...(process.env.EMAIL_BCC && process.env.EMAIL_BCC.trim().length > 0
+        ? { bcc: process.env.EMAIL_BCC.trim() }
+        : {}),
+    });
+
+    const mode = resolveMode(transporter);
+    if (mode === "ethereal") {
+      const url = nodemailer.getTestMessageUrl(info);
+      if (url) console.log("[Email] Ethereal preview:", url);
+      return { ...info, previewUrl: url || null, mode };
+    }
+    return { ...info, previewUrl: null, mode };
+  } catch (e) {
+    console.error("Invite email error:", e);
+    throw e;
+  }
 };
 
 // Polished, brand-aligned ticket email
@@ -774,5 +914,6 @@ const getEmailStatus = async () => {
 module.exports = {
   sendTicketEmail,
   sendNotificationEmail,
+  sendInviteEmail,
   getEmailStatus,
 };
