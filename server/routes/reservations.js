@@ -2,6 +2,7 @@ const express = require("express");
 const { body, validationResult } = require("express-validator");
 const { Op } = require("sequelize");
 const QRCode = require("qrcode");
+const { saveQrToFile } = require("../utils/qr");
 const { Reservation, Seat, Event, User, Payment } = require("../models");
 const { auth } = require("../middleware/auth");
 const { sendTicketEmail } = require("../utils/emailService");
@@ -149,7 +150,26 @@ router.post(
         },
       });
 
-      await reservation.update({ qrCode: qrCodeDataURL }, { transaction: t });
+      // persist QR image to disk and store small path in DB to avoid large base64 payloads
+      try {
+        const saved = await saveQrToFile(
+          qrCodeDataURL,
+          reservation.reservationCode || reservation.id
+        );
+        if (saved)
+          await reservation.update({ qrCode: saved }, { transaction: t });
+        else
+          await reservation.update(
+            { qrCode: qrCodeDataURL },
+            { transaction: t }
+          );
+      } catch (err) {
+        console.warn(
+          "Failed to save QR file during reservation creation",
+          err?.message || err
+        );
+        await reservation.update({ qrCode: qrCodeDataURL }, { transaction: t });
+      }
 
       // Create payment record for free events
       if (totalAmount === 0) {
@@ -479,7 +499,25 @@ router.post("/:id/resend-email", auth, async (req, res) => {
           width: parseInt(process.env.QR_CODE_SIZE || "200", 10),
           color: { dark: "#000000", light: "#FFFFFF" },
         });
-        await reservation.update({ qrCode: qrCodeDataURL });
+        // Save QR to file and store path
+        const { saveQrToFile } = require("../utils/qr");
+        let savePath = null;
+        try {
+          savePath = await saveQrToFile(
+            qrCodeDataURL,
+            reservation.reservationCode || reservation.id
+          );
+        } catch (err) {
+          console.warn(
+            "QR save failed in reservations resend:",
+            err?.message || err
+          );
+        }
+        if (savePath) {
+          await reservation.update({ qrCode: savePath });
+        } else {
+          await reservation.update({ qrCode: qrCodeDataURL });
+        }
       } catch (e) {
         console.warn("Failed to regenerate QR code for resend:", e.message);
       }

@@ -202,12 +202,18 @@ const Home: React.FC = () => {
     let raf = 0;
     let x = 0; // current translateX
     const speed = 1; // px per frame at ~60fps; tweak for taste
+    let halfWidth = Math.max(track.scrollWidth / 2, 1);
+
+    const recalc = () => {
+      // measure off-thread between frames
+      halfWidth = Math.max(track.scrollWidth / 2, 1);
+    };
+    const onResize = () => { recalc(); };
+    window.addEventListener('resize', onResize);
 
     const step = () => {
       if (!pausedRef.current) {
         x -= speed;
-        // Track width is effectively two copies; loop back after half width
-        const halfWidth = track.scrollWidth / 2;
         if (Math.abs(x) >= halfWidth) {
           x += halfWidth;
         }
@@ -218,6 +224,7 @@ const Home: React.FC = () => {
 
     raf = requestAnimationFrame(step);
     return () => {
+      window.removeEventListener('resize', onResize);
       cancelAnimationFrame(raf);
     };
   }, [gallery]);

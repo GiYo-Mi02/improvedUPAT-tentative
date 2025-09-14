@@ -7,6 +7,10 @@ export interface CalendarEvent {
   title: string;
   eventDate: string; // ISO
   venue?: string;
+  // Optional fields coming from backend for richer hover cards
+  posterImage?: string;
+  posterImageUrl?: string;
+  description?: string;
 }
 
 interface EventsCalendarProps {
@@ -25,6 +29,18 @@ const weekdayLabels = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const EventsCalendar: React.FC<EventsCalendarProps> = ({ events, month, onMonthChange }) => {
   const start = startOfMonth(month);
   const end = endOfMonth(month);
+
+  // Resolve image for hover preview
+  const API_BASE = (import.meta as any).env?.VITE_API_URL || 'http://localhost:3001/api';
+  const SERVER_BASE = API_BASE.replace(/\/api$/i, '');
+  const resolvePoster = (ev: Partial<CalendarEvent>): string | null => {
+    const anyEv: any = ev;
+    if (anyEv?.posterImageUrl) return anyEv.posterImageUrl as string;
+    const p = anyEv?.posterImage as string | undefined;
+    if (!p) return null;
+    if (/^https?:/i.test(p)) return p;
+    return `${SERVER_BASE}${p.startsWith('/') ? p : '/' + p}`;
+  };
 
   // Build grid: days from Sunday start
   const startPadding = start.getDay();
@@ -79,7 +95,7 @@ const EventsCalendar: React.FC<EventsCalendarProps> = ({ events, month, onMonthC
         </div>
       </div>
 
-      <div className="grid grid-cols-7 gap-px bg-gray-700/30 rounded-md overflow-hidden">
+      <div className="grid grid-cols-7 gap-px bg-gray-700/30 rounded-md overflow-visible">
         {weekdayLabels.map((w) => (
           <div key={w} className="bg-gray-800/70 text-gray-300 text-center py-2 text-xs font-medium">{w}</div>
         ))}
@@ -94,22 +110,43 @@ const EventsCalendar: React.FC<EventsCalendarProps> = ({ events, month, onMonthC
                 {dayEvents.slice(0,3).map(ev => {
                   const isPlaceholder = (ev as any)._placeholder;
                   const href = (ev as any)._href as string | undefined;
+                  const imgSrc = resolvePoster(ev);
+                  const prettyDate = new Date(ev.eventDate).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
                   const className = isPlaceholder
                     ? 'block text-[11px] leading-tight bg-blue-500/15 text-blue-200 px-2 py-1 rounded border border-blue-400/30'
                     : 'block text-[11px] leading-tight bg-luxury-gold/15 text-luxury-champagne px-2 py-1 rounded hover:bg-luxury-gold/25';
+                  const HoverCard = (
+                    <div className="pointer-events-none absolute z-30 left-0 top-full mt-2 w-64 rounded-lg border border-white/10 shadow-xl bg-gray-900/95 backdrop-blur p-3 opacity-0 scale-95 origin-top-left transition-all duration-150 group-hover:opacity-100 group-hover:scale-100">
+                      {imgSrc && (
+                        <img src={imgSrc} alt={ev.title} className="w-full h-28 object-cover rounded-md border border-white/10 mb-2" loading="lazy" />
+                      )}
+                      <div className="text-white text-sm font-semibold leading-snug line-clamp-2">{ev.title}</div>
+                      <div className="text-[11px] text-gray-300 mt-1">{prettyDate}</div>
+                      {ev.venue && <div className="text-[11px] text-gray-400">{ev.venue}</div>}
+                    </div>
+                  );
                   if (isPlaceholder) {
                     return href ? (
-                      <a href={href} target="_blank" rel="noreferrer" key={ev.id} className={className}>
-                        {ev.title}
-                      </a>
+                      <div key={ev.id} className="relative group">
+                        <a href={href} target="_blank" rel="noreferrer" className={className}>
+                          {ev.title}
+                        </a>
+                        {HoverCard}
+                      </div>
                     ) : (
-                      <div key={ev.id} className={className} title="Planned (placeholder)">{ev.title}</div>
+                      <div key={ev.id} className="relative group">
+                        <div className={className} title="Planned (placeholder)">{ev.title}</div>
+                        {HoverCard}
+                      </div>
                     );
                   }
                   return (
-                    <Link to={`/events/${ev.id}`} key={ev.id} className={className}>
-                      {ev.title}
-                    </Link>
+                    <div key={ev.id} className="relative group">
+                      <Link to={`/events/${ev.id}`} className={className}>
+                        {ev.title}
+                      </Link>
+                      {HoverCard}
+                    </div>
                   );
                 })}
                 {dayEvents.length > 3 && (

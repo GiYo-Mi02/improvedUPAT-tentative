@@ -49,7 +49,7 @@ const ReserveSeats: React.FC = () => {
                 {qr && (
                   <div className="card-luxury p-3 w-52 text-center">
                     <div className="text-xs text-gray-400 mb-1">Ticket QR</div>
-                    <img src={qr} alt="QR" className="w-full h-auto" />
+                    <img src={qr} alt="Reservation QR code" className="w-full h-auto" loading="lazy" decoding="async" />
                   </div>
                 )}
               </div>

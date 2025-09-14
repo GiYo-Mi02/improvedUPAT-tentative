@@ -1,4 +1,5 @@
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
+import { Suspense, lazy } from 'react';
 
 import { AuthProvider } from './contexts/AuthContext';
 import { ToastProvider } from './contexts/ToastContext';
@@ -12,29 +13,29 @@ import Navbar from './components/layout/Navbar';
 import ErrorBoundary from './components/ui/ErrorBoundary';
 import Toast from './components/ui/Toast';
 
-import Council from './pages/Council';
-import Events from './pages/Events';
-import EventDetails from './pages/EventDetails';
-import Home from './pages/Home';
-import Login from './pages/Login';
-import MyTickets from './pages/MyTickets';
-import Profile from './pages/Profile';
-import Register from './pages/Register';
-import ReserveSeats from './pages/ReserveSeats';
+const Council = lazy(() => import('./pages/Council'));
+const Events = lazy(() => import('./pages/Events'));
+const EventDetails = lazy(() => import('./pages/EventDetails'));
+const Home = lazy(() => import('./pages/Home'));
+const Login = lazy(() => import('./pages/Login'));
+const MyTickets = lazy(() => import('./pages/MyTickets'));
+const Profile = lazy(() => import('./pages/Profile'));
+const Register = lazy(() => import('./pages/Register'));
+const ReserveSeats = lazy(() => import('./pages/ReserveSeats'));
 
-import AdminDashboard from './pages/admin/Dashboard';
-import AdminEvents from './pages/admin/Events';
-import AdminReservations from './pages/admin/Reservations';
-import AdminUsers from './pages/admin/Users';
-import AdminGallery from './pages/admin/Gallery';
-import AdminAnnouncements from './pages/admin/Announcements';
+const AdminDashboard = lazy(() => import('./pages/admin/Dashboard'));
+const AdminEvents = lazy(() => import('./pages/admin/Events'));
+const AdminReservations = lazy(() => import('./pages/admin/Reservations'));
+const AdminUsers = lazy(() => import('./pages/admin/Users'));
+const AdminGallery = lazy(() => import('./pages/admin/Gallery'));
+const AdminAnnouncements = lazy(() => import('./pages/admin/Announcements'));
 
-import BadRequest from './pages/errors/BadRequest';
-import Forbidden from './pages/errors/Forbidden';
-import NotFound from './pages/errors/NotFound';
-import ServerError from './pages/errors/ServerError';
-import ServiceUnavailable from './pages/errors/ServiceUnavailable';
-import Unauthorized from './pages/errors/Unauthorized';
+const BadRequest = lazy(() => import('./pages/errors/BadRequest'));
+const Forbidden = lazy(() => import('./pages/errors/Forbidden'));
+const NotFound = lazy(() => import('./pages/errors/NotFound'));
+const ServerError = lazy(() => import('./pages/errors/ServerError'));
+const ServiceUnavailable = lazy(() => import('./pages/errors/ServiceUnavailable'));
+const Unauthorized = lazy(() => import('./pages/errors/Unauthorized'));
 
 function App() {
   return (
@@ -45,6 +46,7 @@ function App() {
             <Navbar />
             <main className="flex-1">
               <ErrorBoundary>
+              <Suspense fallback={<div className="text-gray-400 p-6">Loading…</div>}>
               <Routes>
                 {/* Public Routes */}
                 <Route path="/" element={<Home />} />
@@ -111,6 +113,7 @@ function App() {
                 {/* Catch-all 404 */}
                 <Route path="*" element={<NotFound />} />
               </Routes>
+              </Suspense>
               </ErrorBoundary>
             </main>
             <Footer />

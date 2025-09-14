@@ -21,6 +21,7 @@ const Login: React.FC = () => {
 
   const from = location.state?.from?.pathname || '/';
   const googleBtnRef = useRef<HTMLDivElement | null>(null);
+  const gsiLoadedRef = useRef(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData(prev => ({
@@ -47,40 +48,62 @@ const Login: React.FC = () => {
   useEffect(() => {
     const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
     if (!clientId) return;
-    if (!(window as any).google) return; // script not yet loaded
 
-    const google = (window as any).google;
-    try {
-      google.accounts.id.initialize({
-        client_id: clientId,
-        callback: async (response: any) => {
-          const idToken = response.credential;
-          if (!idToken) return;
-          setIsLoading(true);
-          try {
-            await googleLogin(idToken);
-            showToast('Signed in with Google', 'success');
-            navigate(from, { replace: true });
-          } catch (err: any) {
-            showToast(err.message || 'Google login failed', 'error');
-          } finally {
-            setIsLoading(false);
+    const ensureGsi = () => new Promise<void>((resolve, reject) => {
+      if ((window as any).google) return resolve();
+      if (gsiLoadedRef.current) return resolve();
+      const script = document.createElement('script');
+      script.src = 'https://accounts.google.com/gsi/client';
+      script.async = true;
+      script.defer = true;
+      script.onload = () => { gsiLoadedRef.current = true; resolve(); };
+      script.onerror = () => reject(new Error('Failed to load Google script'));
+      document.head.appendChild(script);
+    });
+
+    let cancelled = false;
+    ensureGsi()
+      .then(() => {
+        if (cancelled) return;
+        const google = (window as any).google;
+        if (!google) return;
+        try {
+          google.accounts.id.initialize({
+            client_id: clientId,
+            callback: async (response: any) => {
+              const idToken = response.credential;
+              if (!idToken) return;
+              setIsLoading(true);
+              try {
+                await googleLogin(idToken);
+                showToast('Signed in with Google', 'success');
+                navigate(from, { replace: true });
+              } catch (err: any) {
+                showToast(err.message || 'Google login failed', 'error');
+              } finally {
+                setIsLoading(false);
+              }
+            },
+            ux_mode: 'popup',
+            auto_select: false,
+          });
+          if (googleBtnRef.current) {
+            google.accounts.id.renderButton(googleBtnRef.current, {
+              theme: 'outline',
+              size: 'large',
+              shape: 'pill',
+              text: 'continue_with',
+            });
           }
-        },
-        ux_mode: 'popup',
-        auto_select: false,
+        } catch (e) {
+          // ignore init errors if script not ready
+        }
+      })
+      .catch(() => {
+        // Script failed; silently ignore to avoid breaking login page
       });
-      if (googleBtnRef.current) {
-        google.accounts.id.renderButton(googleBtnRef.current, {
-          theme: 'outline',
-          size: 'large',
-          shape: 'pill',
-          text: 'continue_with',
-        });
-      }
-    } catch (e) {
-      // ignore init errors if script not ready
-    }
+
+    return () => { cancelled = true; };
   }, [from, googleLogin, navigate, showToast]);
 
   return (

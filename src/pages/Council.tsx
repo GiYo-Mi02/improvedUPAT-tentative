@@ -175,7 +175,7 @@ const Council: React.FC = () => {
         <section className="grid md:grid-cols-3 gap-10 items-start">
           <Reveal className="md:col-span-1 flex flex-col items-start gap-4" variant="up">
             <div className="bg-white w-23 h-23 rounded-full flex items-center justify-center shadow-lg">
-              <img src="./official_logo.png" alt=""/>
+              <img src="./official_logo.png" alt="CCIS official logo" loading="lazy" decoding="async"/>
             </div>
             
           </Reveal>

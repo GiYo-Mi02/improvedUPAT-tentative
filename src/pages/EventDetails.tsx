@@ -115,7 +115,7 @@ const EventDetails: React.FC = () => {
                 {qr && (
                   <div className="card-luxury p-4 text-center">
                     <h3 className="heading-tertiary mb-2">Your Ticket QR</h3>
-                    <img src={qr} alt="QR Code" className="w-40 h-40 mx-auto" />
+                    <img src={qr} alt="Ticket QR code" className="w-40 h-40 mx-auto" loading="lazy" decoding="async" />
                     <p className="text-[10px] text-gray-400 mt-2 break-all">Keep this QR for entry</p>
                   </div>
                 )}

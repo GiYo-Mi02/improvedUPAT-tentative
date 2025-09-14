@@ -27,6 +27,11 @@ const Typewriter: React.FC<Props> = ({
     let cancelled = false;
     let i = 0;
     setOutput('');
+    const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (prefersReduced) {
+      setOutput(safeText);
+      return () => { /* no timers */ };
+    }
     const startTimer = window.setTimeout(() => {
       const id = window.setInterval(() => {
         if (cancelled) return;

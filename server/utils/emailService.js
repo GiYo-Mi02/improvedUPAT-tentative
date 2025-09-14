@@ -1,6 +1,7 @@
 const nodemailer = require("nodemailer");
 const path = require("path");
 const fs = require("fs");
+const { saveQrToFile } = require("./qr");
 
 // Create email transporter (async to allow Ethereal in dev)
 const createTransporter = async () => {
@@ -253,44 +254,63 @@ const sendTicketEmail = async ({
         ? qrCode.trim()
         : reservation?.qrCode || "";
 
+    // If reservation.qrCode is a data URL, prefer storing it as a local file in uploads/qrcodes
+    // The route that creates QR codes will now save to disk and update reservation.qrCode with a path when possible.
     if (provided && typeof provided === "string") {
-      // If a data URL, convert to CID attachment for better compatibility
-      if (provided.startsWith("data:image")) {
-        const match = provided.match(
-          /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/
-        );
-        if (match) {
-          const mime = match[1] || "image/png";
-          const b64 = match[2];
-          const ext = mime.split("/")[1] || "png";
-          const cid = `qrcode-${reservation.reservationCode}@ccis`;
-          attachments.push({
-            filename: `ticket-${reservation.reservationCode}.${ext}`,
-            content: b64,
-            encoding: "base64",
-            cid,
-            contentType: mime,
-          });
-          qrImgTag = `<img src="cid:${cid}" alt="QR Code" />`;
+      try {
+        // If it's a data URL, attempt to save to uploads/qrcodes and embed from file
+        if (provided.startsWith("data:image")) {
+          // try to save via helper which centralizes location/format
+          try {
+            const saved = await saveQrToFile(
+              provided,
+              reservation.reservationCode || reservation.id
+            );
+            if (saved) {
+              const abs = path.join(process.cwd(), saved.replace(/^\//, ""));
+              const filename = path.basename(abs);
+              attachments.push({
+                filename,
+                path: abs,
+                cid: `qrcode-${reservation.reservationCode}@ccis`,
+              });
+              qrImgTag = `<img src="cid:qrcode-${reservation.reservationCode}@ccis" alt="QR Code" />`;
+            } else {
+              qrImgTag = `<img src="${provided}" alt="QR Code" />`;
+            }
+          } catch (err) {
+            console.warn(
+              "[Email QR] failed to save data-url via helper",
+              err?.message || err
+            );
+            qrImgTag = `<img src="${provided}" alt="QR Code" />`;
+          }
+        } else if (/^https?:\/\//i.test(provided)) {
+          qrImgTag = `<img src="${provided}" alt="QR Code" />`;
+        } else if (provided.startsWith("/uploads/")) {
+          // Local path previously saved
+          const abs = path.join(
+            process.cwd(),
+            "server",
+            provided.replace(/^\//, "")
+          );
+          if (fs.existsSync(abs)) {
+            const filename = path.basename(abs);
+            attachments.push({
+              filename,
+              path: abs,
+              cid: `qrcode-${reservation.reservationCode}@ccis`,
+            });
+            qrImgTag = `<img src="cid:qrcode-${reservation.reservationCode}@ccis" alt="QR Code" />`;
+          } else {
+            qrImgTag = `<img src="${provided}" alt="QR Code" />`;
+          }
         } else {
-          // Fallback to direct data URL if parsing fails
           qrImgTag = `<img src="${provided}" alt="QR Code" />`;
         }
-      } else if (/^https?:\/\//i.test(provided)) {
-        // URL case: let client fetch (some clients block remote images)
+      } catch (err) {
+        console.warn("[Email QR] embedding QR failed", err?.message || err);
         qrImgTag = `<img src="${provided}" alt="QR Code" />`;
-      } else if (provided.includes("base64,")) {
-        // Raw base64 with prefix somewhere
-        const b64 = provided.split("base64,")[1];
-        const cid = `qrcode-${reservation.reservationCode}@ccis`;
-        attachments.push({
-          filename: `ticket-${reservation.reservationCode}.png`,
-          content: b64,
-          encoding: "base64",
-          cid,
-          contentType: "image/png",
-        });
-        qrImgTag = `<img src="cid:${cid}" alt="QR Code" />`;
       }
     }
 

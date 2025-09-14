@@ -130,6 +130,24 @@ app.use(
   express.static(announcementsDir)
 );
 
+// Ensure qrcodes directory exists and serve with same headers
+const qrcodesDir = path.join(__dirname, "uploads", "qrcodes");
+fs.mkdirSync(qrcodesDir, { recursive: true });
+app.use(
+  "/uploads/qrcodes",
+  (req, res, next) => {
+    const origin = req.headers.origin;
+    if (origin && allowedOrigins.includes(origin)) {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+      res.setHeader("Vary", "Origin");
+    }
+    res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+    res.setHeader("Cache-Control", "public, max-age=604800, immutable");
+    next();
+  },
+  express.static(qrcodesDir)
+);
+
 // API routes
 app.use("/api/auth", authRoutes);
 app.use("/api/events", eventRoutes);

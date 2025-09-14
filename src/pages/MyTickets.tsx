@@ -111,7 +111,7 @@ const MyTickets: React.FC = () => {
                   {/* Poster */}
                   {imgSrc ? (
                     <div className="relative h-40 mb-4 -mt-2 -mx-2 overflow-hidden rounded-md border border-luxury-gold/10">
-                      <img src={imgSrc} alt={r.event.title} className="w-full h-full object-cover hover:scale-105 transition-transform duration-500" loading="lazy" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+                      <img src={imgSrc} alt={`${r.event.title} poster`} className="w-full h-full object-cover hover:scale-105 transition-transform duration-500" loading="lazy" decoding="async" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
                       <span className="absolute bottom-1 left-2 text-[10px] tracking-wide bg-black/50 px-2 py-0.5 rounded text-luxury-champagne">{new Date(r.event.eventDate).toLocaleDateString()}</span>
                     </div>
@@ -186,7 +186,7 @@ const MyTickets: React.FC = () => {
                 aria-label="Close"
               >✕</button>
               <h3 className="heading-tertiary mb-4">Ticket QR</h3>
-              <img src={qrView.qr} alt="QR" className="w-full h-auto" />
+              <img src={qrView.qr} alt="Ticket QR code" className="w-full h-auto" loading="lazy" decoding="async" />
             </div>
           </div>
         )}

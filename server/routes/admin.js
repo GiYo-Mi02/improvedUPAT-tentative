@@ -5,6 +5,8 @@ const { Event, Seat, Reservation, User } = require("../models");
 const { auth, authorize } = require("../middleware/auth");
 const multer = require("multer");
 const path = require("path");
+const fs = require("fs");
+const { saveQrToFile } = require("../utils/qr");
 const { sequelize } = require("../config/database");
 const {
   sendTicketEmail,
@@ -153,6 +155,8 @@ const isTransientEmailError = (e) => {
     msg.includes("econnreset")
   );
 };
+
+// QR saving is handled by utils/qr.saveQrToFile
 
 // ========== DASHBOARD ==========
 // GET /api/admin/dashboard
@@ -1088,7 +1092,17 @@ router.put("/reservations/bulk-approve", async (req, res) => {
                     width: parseInt(process.env.QR_CODE_SIZE || "200", 10),
                   }
                 );
-                await r.update({ qrCode: qrCodeDataURL });
+                // Save to file and store local path instead of base64
+                const savePath = await saveQrToFile(
+                  qrCodeDataURL,
+                  r.reservationCode || r.id
+                );
+                if (savePath) {
+                  await r.update({ qrCode: savePath });
+                } else {
+                  // Fallback to storing tiny data URL (should be rare)
+                  await r.update({ qrCode: qrCodeDataURL });
+                }
               } catch (e) {
                 console.warn(
                   "[Bulk Approve] QR regeneration failed for",
@@ -1201,7 +1215,15 @@ router.put("/reservations/:id/approve", async (req, res) => {
                 width: parseInt(process.env.QR_CODE_SIZE || "200", 10),
               }
             );
-            await reservation.update({ qrCode: qrCodeDataURL });
+            const savePath = await saveQrToFile(
+              qrCodeDataURL,
+              reservation.reservationCode || reservation.id
+            );
+            if (savePath) {
+              await reservation.update({ qrCode: savePath });
+            } else {
+              await reservation.update({ qrCode: qrCodeDataURL });
+            }
           } catch (e) {
             console.warn(
               "[Approve] QR regeneration failed for",
@@ -1528,7 +1550,15 @@ router.post(
                           ),
                         }
                       );
-                      await reservation.update({ qrCode: qrCodeDataURL });
+                      const savePath = await saveQrToFile(
+                        qrCodeDataURL,
+                        reservation.reservationCode || reservation.id
+                      );
+                      if (savePath) {
+                        await reservation.update({ qrCode: savePath });
+                      } else {
+                        await reservation.update({ qrCode: qrCodeDataURL });
+                      }
                     }
                     // Send ticket with retry on transient errors
                     let attempt = 0;
@@ -1668,7 +1698,15 @@ router.post(
             margin: 1,
             width: parseInt(process.env.QR_CODE_SIZE || "200", 10),
           });
-          await reservation.update({ qrCode: qrCodeDataURL });
+          const savePath = await saveQrToFile(
+            qrCodeDataURL,
+            reservation.reservationCode || reservation.id
+          );
+          if (savePath) {
+            await reservation.update({ qrCode: savePath });
+          } else {
+            await reservation.update({ qrCode: qrCodeDataURL });
+          }
         } catch (e) {
           console.warn(
             "[Admin Resend] QR regeneration failed for",
@@ -2488,7 +2526,15 @@ router.post(
                       width: parseInt(process.env.QR_CODE_SIZE || "200", 10),
                     }
                   );
-                  await reservation.update({ qrCode: qrCodeDataURL });
+                  const savePath = await saveQrToFile(
+                    qrCodeDataURL,
+                    reservation.reservationCode || reservation.id
+                  );
+                  if (savePath) {
+                    await reservation.update({ qrCode: savePath });
+                  } else {
+                    await reservation.update({ qrCode: qrCodeDataURL });
+                  }
                 } catch (e) {
                   console.warn(
                     "[Mandatory Invite] QR generation failed for",
